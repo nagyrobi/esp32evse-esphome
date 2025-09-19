@@ -5,6 +5,11 @@ import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 
+esp32_evse_ns = cg.esphome_ns.namespace("esp32_evse")
+ESP32EVSEComponent = esp32_evse_ns.class_(
+    "ESP32EVSEComponent", cg.PollingComponent, uart.UARTDevice
+)
+
 from . import sensor as sensor_config
 from . import text_sensor as text_sensor_config
 from . import switch as switch_config
@@ -21,11 +26,6 @@ from .const import (
 
 AUTO_LOAD = ["sensor", "text_sensor", "number", "switch", "button"]
 DEPENDENCIES = ["uart"]
-
-esp32_evse_ns = cg.esphome_ns.namespace("esp32_evse")
-ESP32EVSEComponent = esp32_evse_ns.class_(
-    "ESP32EVSEComponent", cg.PollingComponent, uart.UARTDevice
-)
 
 CONFIG_SCHEMA = (
     cv.Schema({cv.GenerateID(): cv.declare_id(ESP32EVSEComponent)})
