@@ -7,7 +7,23 @@
 namespace esphome {
 namespace esp32_evse {
 
-static const char *const TAG = "esp32_evse";
+namespace {
+constexpr const char *TAG = "esp32_evse";
+constexpr const char *kCommandStart = "AT+START";
+constexpr const char *kCommandStop = "AT+STOP";
+constexpr const char *kCommandReset = "AT+RESET";
+constexpr const char *kCommandPing = "AT";
+constexpr const char *kCommandSetCurrent = "AT+SETCUR";
+constexpr const char *kQueryState = "AT+STATE?";
+constexpr const char *kQueryVoltage = "AT+VOLT?";
+constexpr const char *kQueryCurrent = "AT+CURR?";
+constexpr const char *kQueryEnergy = "AT+ENER?";
+constexpr const char *kQueryTemperature = "AT+TEMP?";
+constexpr const char *kPrefixVoltage = "VOLT:";
+constexpr const char *kPrefixCurrent = "CURR:";
+constexpr const char *kPrefixEnergy = "ENER:";
+constexpr const char *kPrefixTemperature = "TEMP:";
+}  // namespace
 
 ESP32EVSEComponent::ESP32EVSEComponent() : PollingComponent(15000) {}
 
@@ -16,7 +32,7 @@ void ESP32EVSEComponent::setup() {
   this->flush_input_();
 
   std::string response;
-  if (this->execute_command_("AT", &response)) {
+  if (this->execute_command_(kCommandPing, &response)) {
     if (!response.empty() && response != "OK") {
       ESP_LOGI(TAG, "EVSE replied: %s", response.c_str());
     }
@@ -64,7 +80,7 @@ void ESP32EVSEComponent::update() {
 }
 
 bool ESP32EVSEComponent::set_charging_enabled(bool enabled) {
-  const std::string command = enabled ? "AT+START" : "AT+STOP";
+  const std::string command = enabled ? kCommandStart : kCommandStop;
   if (!this->execute_command_(command)) {
     return false;
   }
@@ -76,16 +92,14 @@ bool ESP32EVSEComponent::set_charging_enabled(bool enabled) {
 }
 
 bool ESP32EVSEComponent::reset_evse() {
-  if (!this->execute_command_("AT+RESET")) {
-    return false;
-  }
-  return true;
+  return this->execute_command_(kCommandReset);
 }
 
 bool ESP32EVSEComponent::set_current_limit(float value) {
   char buffer[16];
   snprintf(buffer, sizeof(buffer), "%.1f", value);
-  std::string command = "AT+SETCUR=";
+  std::string command{kCommandSetCurrent};
+  command += "=";
   command += buffer;
   if (!this->execute_command_(command)) {
     return false;
@@ -121,80 +135,71 @@ bool ESP32EVSEComponent::execute_command_(const std::string &command, std::strin
       continue;
     }
 
-    if (first_line.empty()) {
-      continue;
-    }
-
     if (first_line == "OK") {
       if (response != nullptr) {
-        response->clear();
+        *response = std::string();
       }
       return true;
     }
-
-    if (first_line.rfind("ERR", 0) == 0) {
+    if (first_line == "ERROR") {
       this->publish_error_(command.c_str(), first_line);
-      continue;
+      return false;
     }
 
     if (response != nullptr) {
       *response = first_line;
     }
 
-    std::string second_line;
-    if (this->read_line_(second_line, 150)) {
-      if (second_line == "OK") {
-        return true;
-      }
-      if (second_line.rfind("ERR", 0) == 0) {
-        this->publish_error_(command.c_str(), second_line);
-        continue;
-      }
-      // Preserve unparsed data for visibility in the logs.
-      ESP_LOGD(TAG, "Additional response to %s: %s", command.c_str(), second_line.c_str());
+    std::string status_line;
+    if (!this->read_line_(status_line, this->command_timeout_ms_)) {
+      ESP_LOGW(TAG, "Timeout reading status line for %s", command.c_str());
+      continue;
     }
 
-    return true;
+    if (status_line == "OK") {
+      return true;
+    }
+
+    this->publish_error_(command.c_str(), status_line);
   }
 
-  ESP_LOGE(TAG, "Failed to execute command %s after %u attempts", command.c_str(),
+  ESP_LOGE(TAG, "Giving up on command %s after %u retries", command.c_str(),
            static_cast<unsigned>(this->command_retries_ + 1));
   return false;
 }
 
 bool ESP32EVSEComponent::read_line_(std::string &line, uint32_t timeout_ms) const {
-  line.clear();
   const uint32_t start = millis();
+  line.clear();
+
   while (millis() - start < timeout_ms) {
-    if (this->available()) {
-      const char c = this->read();
-      if (c == '\r') {
-        continue;
-      }
-      if (c == '\n') {
-        if (!line.empty()) {
-          return true;
-        }
-        continue;
-      }
-      line.push_back(c);
+    if (!this->available()) {
+      delay(1);
       continue;
     }
-    delay(5);
+    char c = this->read();
+    if (c == '\r') {
+      continue;
+    }
+    if (c == '\n') {
+      return true;
+    }
+    line.push_back(c);
   }
-  return !line.empty();
+
+  return false;
 }
 
 void ESP32EVSEComponent::flush_input_() {
-  this->incoming_line_.clear();
   while (this->available()) {
     this->read();
   }
+  this->incoming_line_.clear();
 }
 
 bool ESP32EVSEComponent::parse_numeric_response_(const std::string &response,
                                                  const std::string &prefix, float *value) const {
-  if (!value) {
+  if (value == nullptr) {
     return false;
   }
   if (response.rfind(prefix, 0) != 0) {
@@ -213,7 +218,7 @@ bool ESP32EVSEComponent::parse_numeric_response_(const std::string &response,
 
 bool ESP32EVSEComponent::parse_state_response_(const std::string &response,
                                                std::string *value) const {
-  if (!value) {
+  if (value == nullptr) {
     return false;
   }
   const auto separator = response.find(':');
@@ -233,14 +238,17 @@ void ESP32EVSEComponent::update_charging_state_() {
   if (this->charging_state_text_sensor_ == nullptr) {
     return;
   }
+
   std::string response;
-  if (!this->execute_query_("AT+STATE?", response)) {
+  if (!this->execute_query_(kQueryState, response)) {
     return;
   }
+
   std::string state;
   if (!this->parse_state_response_(response, &state)) {
     return;
   }
+
   this->charging_state_text_sensor_->publish_state(state);
   const bool is_active = state == "Charging" || state == "Active" || state == "Preparing";
   this->last_charging_enabled_ = is_active;
@@ -253,14 +261,17 @@ void ESP32EVSEComponent::update_voltage_() {
   if (this->voltage_sensor_ == nullptr) {
     return;
   }
+
   std::string response;
-  if (!this->execute_query_("AT+VOLT?", response)) {
+  if (!this->execute_query_(kQueryVoltage, response)) {
     return;
   }
+
   float value;
-  if (!this->parse_numeric_response_(response, "VOLT:", &value)) {
+  if (!this->parse_numeric_response_(response, kPrefixVoltage, &value)) {
     return;
   }
+
   this->voltage_sensor_->publish_state(value);
 }
 
@@ -268,14 +279,17 @@ void ESP32EVSEComponent::update_current_() {
   if (this->current_sensor_ == nullptr) {
     return;
   }
+
   std::string response;
-  if (!this->execute_query_("AT+CURR?", response)) {
+  if (!this->execute_query_(kQueryCurrent, response)) {
     return;
   }
+
   float value;
-  if (!this->parse_numeric_response_(response, "CURR:", &value)) {
+  if (!this->parse_numeric_response_(response, kPrefixCurrent, &value)) {
     return;
   }
+
   this->current_sensor_->publish_state(value);
 }
 
@@ -283,14 +297,17 @@ void ESP32EVSEComponent::update_energy_() {
   if (this->energy_sensor_ == nullptr) {
     return;
   }
+
   std::string response;
-  if (!this->execute_query_("AT+ENER?", response)) {
+  if (!this->execute_query_(kQueryEnergy, response)) {
     return;
   }
+
   float value;
-  if (!this->parse_numeric_response_(response, "ENER:", &value)) {
+  if (!this->parse_numeric_response_(response, kPrefixEnergy, &value)) {
     return;
   }
+
   this->energy_sensor_->publish_state(value);
 }
 
@@ -298,14 +315,17 @@ void ESP32EVSEComponent::update_temperature_() {
   if (this->temperature_sensor_ == nullptr) {
     return;
   }
+
   std::string response;
-  if (!this->execute_query_("AT+TEMP?", response)) {
+  if (!this->execute_query_(kQueryTemperature, response)) {
     return;
   }
+
   float value;
-  if (!this->parse_numeric_response_(response, "TEMP:", &value)) {
+  if (!this->parse_numeric_response_(response, kPrefixTemperature, &value)) {
     return;
   }
+
   this->temperature_sensor_->publish_state(value);
 }
 
