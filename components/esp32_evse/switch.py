@@ -7,12 +7,13 @@ import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.const import ICON_FLASH
 
+from . import ESP32EVSEComponent
 from .const import CONF_CHARGING_SWITCH
 
 esp32_evse_ns = cg.esphome_ns.namespace("esp32_evse")
-ESP32EVSEComponent = esp32_evse_ns.class_("ESP32EVSEComponent")
+
 ESP32EVSEChargingSwitch = esp32_evse_ns.class_(
-    "ESP32EVSEChargingSwitch", switch.Switch, cg.Parented(ESP32EVSEComponent)
+    "ESP32EVSEChargingSwitch", switch.Switch, cg.Parented.template(ESP32EVSEComponent)
 )
 
 SWITCHES_SCHEMA = cv.Schema(

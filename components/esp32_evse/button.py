@@ -7,12 +7,13 @@ import esphome.config_validation as cv
 from esphome.components import button
 from esphome.const import ICON_RESTART
 
+from . import ESP32EVSEComponent
 from .const import CONF_RESET_BUTTON
 
 esp32_evse_ns = cg.esphome_ns.namespace("esp32_evse")
-ESP32EVSEComponent = esp32_evse_ns.class_("ESP32EVSEComponent")
+
 ESP32EVSEResetButton = esp32_evse_ns.class_(
-    "ESP32EVSEResetButton", button.Button, cg.Parented(ESP32EVSEComponent)
+    "ESP32EVSEResetButton", button.Button, cg.Parented.template(ESP32EVSEComponent)
 )
 
 BUTTONS_SCHEMA = cv.Schema(
