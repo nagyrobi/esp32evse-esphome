@@ -1,4 +1,4 @@
-"""Switch platform for the ESP32 EVSE external component."""
+"""Switch platform bindings for the ESP32 EVSE component."""
 
 from __future__ import annotations
 
@@ -7,29 +7,31 @@ import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.const import ICON_FLASH
 
+from . import ESP32EVSEComponent
 from .const import CONF_CHARGING_SWITCH
 
 esp32_evse_ns = cg.esphome_ns.namespace("esp32_evse")
-ESP32EVSEComponent = esp32_evse_ns.class_("ESP32EVSEComponent")
 ESP32EVSEChargingSwitch = esp32_evse_ns.class_(
-    "ESP32EVSEChargingSwitch", switch.Switch, cg.Parented(ESP32EVSEComponent)
+    "ESP32EVSEChargingSwitch",
+    switch.Switch,
+    cg.Parented.template(ESP32EVSEComponent),
 )
 
 SWITCHES_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_CHARGING_SWITCH): switch.switch_schema(ESP32EVSEChargingSwitch).extend(
-            {cv.Optional("icon", default=ICON_FLASH): cv.icon},
+        cv.Optional(CONF_CHARGING_SWITCH): switch.switch_schema(
+            ESP32EVSEChargingSwitch,
+            icon=ICON_FLASH,
         )
     }
 )
 
 
-async def setup_switches(var: cg.Pvariable, config: dict | None) -> None:
-    if not config:
+async def setup_switches(parent: cg.Pvariable, config: dict | None) -> None:
+    """Create the charging switch if it is present in the configuration."""
+
+    if not config or CONF_CHARGING_SWITCH not in config:
         return
 
-    if CONF_CHARGING_SWITCH in config:
-        sw_config = config[CONF_CHARGING_SWITCH]
-        sw = await switch.new_switch(sw_config)
-        cg.add(var.set_charging_switch(sw))
-
+    sw = await switch.new_switch(config[CONF_CHARGING_SWITCH])
+    cg.add(parent.set_charging_switch(sw))
