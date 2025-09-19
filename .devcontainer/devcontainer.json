@@ -1,0 +1,10 @@
+{
+  "name": "ESPHome Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+  // Optional: forward ESPHome dashboard port
+  "forwardPorts": [6052],
+
+  // Install ESPHome after container is created
+  "postCreateCommand": "pip3 install esphome"
+}
