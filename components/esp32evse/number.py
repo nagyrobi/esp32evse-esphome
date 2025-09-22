@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 
-from esphome.const import UNIT_AMPERE
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_STEP, UNIT_AMPERE
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -22,6 +22,12 @@ CONFIG_SCHEMA = cv.Schema(
             ESP32EVSEChargingCurrentNumber,
             icon="mdi:current-ac",
             unit_of_measurement=UNIT_AMPERE,
+        ).extend(
+            {
+                cv.Optional(CONF_MIN_VALUE, default=6.0): cv.float_,
+                cv.Optional(CONF_MAX_VALUE, default=63.0): cv.float_,
+                cv.Optional(CONF_STEP, default=0.1): cv.positive_float,
+            }
         ),
     }
 )
@@ -29,6 +35,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_ESP32EVSE_ID])
-    num = await number.new_number(config[CONF_CHARGING_CURRENT])
+    charging_current_cfg = config[CONF_CHARGING_CURRENT]
+    num = await number.new_number(
+        charging_current_cfg,
+        min_value=charging_current_cfg[CONF_MIN_VALUE],
+        max_value=charging_current_cfg[CONF_MAX_VALUE],
+        step=charging_current_cfg[CONF_STEP],
+    )
     await cg.register_parented(num, config[CONF_ESP32EVSE_ID])
     cg.add(parent.set_charging_current_number(num))
