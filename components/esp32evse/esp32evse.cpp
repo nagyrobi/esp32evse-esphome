@@ -371,6 +371,24 @@ void ESP32EVSEComponent::unsubscribe_fast_power_updates() {
   this->send_command_("AT+UNSUB=\"+EMETERPOWER\"");
 }
 
+void ESP32EVSEComponent::subscribe_command(const std::string &command, uint32_t period_ms) {
+  ESP_LOGW(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
+  std::string cmd = "AT+SUB=" + command + "," + std::to_string(period_ms);
+  this->send_command_(cmd);
+}
+
+void ESP32EVSEComponent::unsubscribe_command(const std::string &command) {
+  if (command.empty()) {
+    ESP_LOGW(TAG, "Sending AT+UNSUB without command parameter");
+    this->send_command_("AT+UNSUB");
+    return;
+  }
+
+  ESP_LOGW(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
+  std::string cmd = "AT+UNSUB=" + command;
+  this->send_command_(cmd);
+}
+
 void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
 
 void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }

@@ -86,5 +86,37 @@ communication multiplier where applicable.
 - Adjust number ranges to match the electrical limits of your installation.
 - Remove sections you do not need to reduce resource usage on the device.
 
+### Using generic AT subscriptions from YAML
+
+The component exposes helper methods so you can trigger `AT+SUB` / `AT+UNSUB`
+commands directly from ESPHome lambdas. This allows custom subscriptions beyond
+the built-in fast power helpers. For example, you can add buttons that control a
+subscription to the `EMETERPOWER` feed:
+
+```yaml
+button:
+  - platform: template
+    name: "Subscribe to EMETERPOWER"
+    on_press:
+      - lambda: |-
+          id(evse).subscribe_command("\"+EMETERPOWER\"", 1000);
+  - platform: template
+    name: "Unsubscribe from EMETERPOWER"
+    on_press:
+      - lambda: |-
+          id(evse).unsubscribe_command("\"+EMETERPOWER\"");
+```
+
+Passing an empty string to `unsubscribe_command()` sends a bare `AT+UNSUB`
+request, which clears every active subscription:
+
+```yaml
+  - platform: template
+    name: "Unsubscribe from all feeds"
+    on_press:
+      - lambda: |-
+          id(evse).unsubscribe_command("");
+```
+
 With the configuration in this repository you can quickly evaluate the ESP32EVSE
 component and tailor it to your own EV charging project.
