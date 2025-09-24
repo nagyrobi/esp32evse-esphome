@@ -36,6 +36,15 @@ CONF_MULTIPLIER = "multiplier"
 _NUMBER_SCHEMA_SUPPORTS_LIMITS = "min_value" in inspect.signature(  # pragma: no branch
     number.number_schema
 ).parameters
+_NUMBER_SCHEMA_SUPPORTS_MODE = "mode" in inspect.signature(  # pragma: no branch
+    number.number_schema
+).parameters
+
+_NUMBER_MODE_BOX = None
+if hasattr(number, "NumberMode"):
+    _NUMBER_MODE_BOX = getattr(number.NumberMode, "NUMBER_MODE_BOX", None)
+elif hasattr(number, "NUMBER_MODE_BOX"):
+    _NUMBER_MODE_BOX = number.NUMBER_MODE_BOX
 
 
 def _build_number_schema(
@@ -52,7 +61,8 @@ def _build_number_schema(
         kwargs["unit_of_measurement"] = unit
     if entity_category is not None:
         kwargs["entity_category"] = entity_category
-    kwargs["mode"] = number.NumberMode.NUMBER_MODE_BOX
+    if _NUMBER_SCHEMA_SUPPORTS_MODE and _NUMBER_MODE_BOX is not None:
+        kwargs["mode"] = _NUMBER_MODE_BOX
     if _NUMBER_SCHEMA_SUPPORTS_LIMITS:
         kwargs.update(
             {
