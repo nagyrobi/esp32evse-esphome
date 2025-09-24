@@ -156,7 +156,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_WIFI_RSSI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-                icon="mdi:wifi-strength-2",
+                icon="mdi:wifi",
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
