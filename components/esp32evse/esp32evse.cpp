@@ -385,8 +385,8 @@ void ESP32EVSEComponent::subscribe_command(const std::string &command, uint32_t 
 
 void ESP32EVSEComponent::unsubscribe_command(const std::string &command) {
   if (command.empty()) {
-    ESP_LOGW(TAG, "Sending AT+UNSUB without command parameter");
-    this->send_command_("AT+UNSUB");
+    ESP_LOGW(TAG, "Sending AT+UNSUB with empty command parameter");
+    this->send_command_("AT+UNSUB=\"\"");
     return;
   }
 
