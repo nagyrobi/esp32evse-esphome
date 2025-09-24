@@ -99,15 +99,15 @@ button:
     name: "Subscribe to EMETERPOWER"
     on_press:
       - lambda: |-
-          id(evse).subscribe_command("\"+EMETERPOWER\"", 1000);
+          id(evse).at_sub("\"+EMETERPOWER\"", 1000);
   - platform: template
     name: "Unsubscribe from EMETERPOWER"
     on_press:
       - lambda: |-
-          id(evse).unsubscribe_command("\"+EMETERPOWER\"");
+          id(evse).at_unsub("\"+EMETERPOWER\"");
 ```
 
-Passing an empty string to `unsubscribe_command()` sends `AT+UNSUB=""`,
+Passing an empty string to `at_unsub()` sends `AT+UNSUB=""`,
 which clears every active subscription:
 
 ```yaml
@@ -115,7 +115,7 @@ which clears every active subscription:
     name: "Unsubscribe from all feeds"
     on_press:
       - lambda: |-
-          id(evse).unsubscribe_command("");
+          id(evse).at_unsub("");
 ```
 
 With the configuration in this repository you can quickly evaluate the ESP32EVSE

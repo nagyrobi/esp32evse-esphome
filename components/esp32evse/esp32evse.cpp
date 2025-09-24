@@ -371,7 +371,7 @@ void ESP32EVSEComponent::unsubscribe_fast_power_updates() {
   this->send_command_("AT+UNSUB=\"+EMETERPOWER\"");
 }
 
-void ESP32EVSEComponent::subscribe_command(const std::string &command, uint32_t period_ms) {
+void ESP32EVSEComponent::at_sub(const std::string &command, uint32_t period_ms) {
   if (!this->is_valid_subscription_argument_(command)) {
     ESP_LOGW(TAG,
              "Rejected AT+SUB wrapper request with argument '%s'; only subscription targets are allowed",
@@ -383,7 +383,7 @@ void ESP32EVSEComponent::subscribe_command(const std::string &command, uint32_t 
   this->send_command_(cmd);
 }
 
-void ESP32EVSEComponent::unsubscribe_command(const std::string &command) {
+void ESP32EVSEComponent::at_unsub(const std::string &command) {
   if (command.empty()) {
     ESP_LOGW(TAG, "Sending AT+UNSUB with empty command parameter");
     this->send_command_("AT+UNSUB=\"\"");
