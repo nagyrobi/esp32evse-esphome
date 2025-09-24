@@ -1,6 +1,5 @@
 {
-  "name": "ESPHome Dev",
-  "build": {
-    "dockerfile": "Dockerfile"
-  }
+  "name": "ESPHome Codex",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "postCreateCommand": "pip install --upgrade pip && pip install esphome platformio"
 }
