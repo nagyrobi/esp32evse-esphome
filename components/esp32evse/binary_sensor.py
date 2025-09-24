@@ -23,9 +23,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
             cv.Optional(CONF_PENDING_AUTHORIZATION): binary_sensor.binary_sensor_schema(
-                icon="mdi:clipboard-clock"
+                ESP32EVSEPendingAuthorizationBinarySensor,
+                icon="mdi:clipboard-clock",
             ),
             cv.Optional(CONF_WIFI_CONNECTED): binary_sensor.binary_sensor_schema(
+                ESP32EVSEWifiConnectedBinarySensor,
                 device_class=DEVICE_CLASS_CONNECTIVITY,
                 icon="mdi:wifi-check",
             ),
