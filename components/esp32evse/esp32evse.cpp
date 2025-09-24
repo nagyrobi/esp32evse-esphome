@@ -11,7 +11,9 @@
 #include <ctime>
 #include <inttypes.h>
 #include <limits>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace esphome {
 namespace esp32evse {
@@ -48,6 +50,24 @@ std::string trim_copy(const char *value) {
     out = out.substr(1, out.size() - 2);
   }
   return out;
+}
+
+std::vector<std::string> split_and_trim(const std::string &input, char delimiter = ',') {
+  std::vector<std::string> parts;
+  size_t start = 0;
+  while (start <= input.size()) {
+    size_t end = input.find(delimiter, start);
+    std::string part;
+    if (end == std::string::npos) {
+      part = input.substr(start);
+      parts.push_back(trim_copy(part.c_str()));
+      break;
+    }
+    part = input.substr(start, end - start);
+    parts.push_back(trim_copy(part.c_str()));
+    start = end + 1;
+  }
+  return parts;
 }
 
 }  // namespace
@@ -416,7 +436,20 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+CHIP")) {
-    this->update_chip_(trim_copy(value));
+    std::string chip_info = trim_copy(value);
+    auto chip_parts = split_and_trim(chip_info);
+    if (!chip_parts.empty()) {
+      std::string formatted = chip_parts.front();
+      if (chip_parts.size() >= 2) {
+        int cores = atoi(chip_parts[1].c_str());
+        if (cores > 0) {
+          formatted += ", " + std::to_string(cores) + (cores == 1 ? " core" : " cores");
+        }
+      }
+      this->update_chip_(formatted);
+    } else {
+      this->update_chip_(chip_info);
+    }
     return;
   }
   if (const char *value = value_after_prefix(line, "+VER")) {
@@ -437,10 +470,13 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+WIFISTACFG")) {
-    std::string ssid = trim_copy(value);
-    size_t comma = ssid.find(',');
-    if (comma != std::string::npos)
-      ssid = ssid.substr(0, comma);
+    std::string wifi_cfg = trim_copy(value);
+    auto wifi_parts = split_and_trim(wifi_cfg);
+    std::string ssid;
+    if (wifi_parts.size() >= 2)
+      ssid = wifi_parts[1];
+    else
+      ssid = wifi_cfg;
     this->update_wifi_sta_cfg_(ssid);
     return;
   }
