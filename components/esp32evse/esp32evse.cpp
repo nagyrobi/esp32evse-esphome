@@ -821,8 +821,8 @@ void ESP32EVSEComponent::update_default_charging_current_(uint16_t value_tenths)
   this->publish_scaled_number_(this->default_charging_current_number_, value_tenths);
 }
 
-void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_tenths) {
-  this->publish_scaled_number_(this->maximum_charging_current_number_, value_tenths);
+void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_amps) {
+  this->publish_scaled_number_(this->maximum_charging_current_number_, value_amps);
 }
 
 void ESP32EVSEComponent::update_consumption_limit_(float value) {

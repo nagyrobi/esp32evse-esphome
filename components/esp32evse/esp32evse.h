@@ -215,7 +215,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_currents_(float l1, float l2, float l3);
   void update_wifi_status_(bool connected, int rssi);
   void update_default_charging_current_(uint16_t value_tenths);
-  void update_maximum_charging_current_(uint16_t value_tenths);
+  void update_maximum_charging_current_(uint16_t value_amps);
   void update_consumption_limit_(float value);
   void update_default_consumption_limit_(float value);
   void update_charging_time_limit_(uint32_t value);
