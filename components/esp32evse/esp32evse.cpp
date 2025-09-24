@@ -70,6 +70,22 @@ std::vector<std::string> split_and_trim(const std::string &input, char delimiter
   return parts;
 }
 
+float parse_last_float(const std::string &input) {
+  float result = NAN;
+  const char *start = input.c_str();
+  char *endptr = nullptr;
+  while (*start != '\0') {
+    float value = strtof(start, &endptr);
+    if (endptr == start) {
+      ++start;
+      continue;
+    }
+    result = value;
+    start = endptr;
+  }
+  return result;
+}
+
 }  // namespace
 
 void ESP32EVSEComponent::setup() {
@@ -559,8 +575,12 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+EMETERTOTCONSUM")) {
-    float consum = strtof(value, nullptr);
-    this->update_total_energy_consumption_(consum);
+    float consum = parse_last_float(value);
+    if (std::isnan(consum)) {
+      ESP_LOGW(TAG, "Unable to parse total energy consumption from '%s'", value);
+    } else {
+      this->update_total_energy_consumption_(consum);
+    }
     return;
   }
   if (const char *value = value_after_prefix(line, "+EMETERVOLTAGE")) {
@@ -839,6 +859,12 @@ void ESP32EVSEComponent::update_total_energy_consumption_(float value) {
 }
 
 void ESP32EVSEComponent::update_voltages_(float l1, float l2, float l3) {
+  if (!std::isnan(l1))
+    l1 /= 1000.0f;
+  if (!std::isnan(l2))
+    l2 /= 1000.0f;
+  if (!std::isnan(l3))
+    l3 /= 1000.0f;
   if (this->voltage_l1_sensor_ != nullptr)
     this->voltage_l1_sensor_->publish_state(l1);
   if (this->voltage_l2_sensor_ != nullptr)
@@ -848,6 +874,12 @@ void ESP32EVSEComponent::update_voltages_(float l1, float l2, float l3) {
 }
 
 void ESP32EVSEComponent::update_currents_(float l1, float l2, float l3) {
+  if (!std::isnan(l1))
+    l1 /= 1000.0f;
+  if (!std::isnan(l2))
+    l2 /= 1000.0f;
+  if (!std::isnan(l3))
+    l3 /= 1000.0f;
   if (this->current_l1_sensor_ != nullptr)
     this->current_l1_sensor_->publish_state(l1);
   if (this->current_l2_sensor_ != nullptr)

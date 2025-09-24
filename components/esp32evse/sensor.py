@@ -3,6 +3,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
@@ -12,6 +13,8 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
@@ -99,12 +102,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENERGY_CONSUMPTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT_HOUR,
                 icon="mdi:counter",
-                state_class=STATE_CLASS_MEASUREMENT,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TOTAL_ENERGY_CONSUMPTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT_HOUR,
                 icon="mdi:counter",
-                state_class=STATE_CLASS_MEASUREMENT,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_VOLTAGE_L1): sensor.sensor_schema(
