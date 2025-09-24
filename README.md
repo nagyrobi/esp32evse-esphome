@@ -107,8 +107,8 @@ button:
           id(evse).unsubscribe_command("\"+EMETERPOWER\"");
 ```
 
-Passing an empty string to `unsubscribe_command()` sends a bare `AT+UNSUB`
-request, which clears every active subscription:
+Passing an empty string to `unsubscribe_command()` sends `AT+UNSUB=""`,
+which clears every active subscription:
 
 ```yaml
   - platform: template
