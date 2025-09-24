@@ -22,8 +22,6 @@ class ESP32EVSEEnableSwitch;
 class ESP32EVSEAvailableSwitch;
 class ESP32EVSERequestAuthorizationSwitch;
 class ESP32EVSEChargingCurrentNumber;
-class ESP32EVSEFastSubscribeButton;
-class ESP32EVSEFastUnsubscribeButton;
 class ESP32EVSEResetButton;
 class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
@@ -126,10 +124,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     this->emeter_charging_time_sensor_ = sensor;
   }
 
-  void set_fast_subscribe_button(ESP32EVSEFastSubscribeButton *btn) { this->fast_subscribe_button_ = btn; }
-  void set_fast_unsubscribe_button(ESP32EVSEFastUnsubscribeButton *btn) {
-    this->fast_unsubscribe_button_ = btn;
-  }
   void set_reset_button(ESP32EVSEResetButton *btn) { this->reset_button_ = btn; }
   void set_authorize_button(ESP32EVSEAuthorizeButton *btn) { this->authorize_button_ = btn; }
 
@@ -279,8 +273,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   sensor::Sensor *emeter_session_time_sensor_{nullptr};
   sensor::Sensor *emeter_charging_time_sensor_{nullptr};
 
-  ESP32EVSEFastSubscribeButton *fast_subscribe_button_{nullptr};
-  ESP32EVSEFastUnsubscribeButton *fast_unsubscribe_button_{nullptr};
   ESP32EVSEResetButton *reset_button_{nullptr};
   ESP32EVSEAuthorizeButton *authorize_button_{nullptr};
 
@@ -320,16 +312,6 @@ class ESP32EVSEChargingCurrentNumber : public number::Number, public Parented<ES
 
   std::string command_{"AT+CHCUR"};
   float multiplier_{10.0f};
-};
-
-class ESP32EVSEFastSubscribeButton : public button::Button, public Parented<ESP32EVSEComponent> {
- protected:
-  void press_action() override;
-};
-
-class ESP32EVSEFastUnsubscribeButton : public button::Button, public Parented<ESP32EVSEComponent> {
- protected:
-  void press_action() override;
 };
 
 class ESP32EVSEResetButton : public button::Button, public Parented<ESP32EVSEComponent> {

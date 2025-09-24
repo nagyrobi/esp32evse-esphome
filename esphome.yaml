@@ -47,10 +47,6 @@ binary_sensor:
 button:
   - platform: esp32evse
     esp32evse_id: evse
-    fast_power_subscribe:
-      name: "EVSE Fast Power Subscribe"
-    fast_power_unsubscribe:
-      name: "EVSE Fast Power Unsubscribe"
     reset:
       name: "EVSE Reset"
     authorize:
