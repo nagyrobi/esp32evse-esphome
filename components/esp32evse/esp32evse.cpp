@@ -276,12 +276,10 @@ void ESP32EVSEEnableSwitch::write_state(bool state) {
   this->parent_->write_enable_state(state);
 }
 
-number::NumberTraits ESP32EVSEChargingCurrentNumber::traits() {
-  auto traits = number::NumberTraits();
-  traits.set_min_value(6.0f);
-  traits.set_max_value(63.0f);
-  traits.set_step(0.1f);
-  return traits;
+ESP32EVSEChargingCurrentNumber::ESP32EVSEChargingCurrentNumber() {
+  this->traits.set_min_value(6.0f);
+  this->traits.set_max_value(63.0f);
+  this->traits.set_step(0.1f);
 }
 
 void ESP32EVSEChargingCurrentNumber::control(float value) {
