@@ -1,0 +1,6 @@
+{
+  "name": "ESPHome Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  }
+}
