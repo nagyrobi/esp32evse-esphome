@@ -12,7 +12,6 @@ from esphome.const import (
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
-    UNIT_BYTE,
     UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
     UNIT_SECOND,
@@ -68,7 +67,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HEAP): sensor.sensor_schema(
-                unit_of_measurement=UNIT_BYTE,
+                unit_of_measurement="B",
                 icon="mdi:memory",
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
