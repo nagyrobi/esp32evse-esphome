@@ -80,7 +80,7 @@ void ESP32EVSEComponent::setup() {
     this->request_enable_update();
     this->request_pending_authorization_update();
 
-    if (this->temperature_sensor_ != nullptr)
+    if (this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr)
       this->request_temperature_update();
     if (this->charging_current_number_ != nullptr)
       this->request_charging_current_update();
@@ -188,7 +188,7 @@ void ESP32EVSEComponent::update() {
   this->request_enable_update();
   this->request_pending_authorization_update();
 
-  if (this->temperature_sensor_ != nullptr)
+  if (this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr)
     this->request_temperature_update();
   if (this->charging_current_number_ != nullptr)
     this->request_charging_current_update();
@@ -642,16 +642,22 @@ void ESP32EVSEComponent::update_enable_(bool enable) {
 }
 
 void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t low) {
-  if (this->temperature_sensor_ == nullptr)
+  if (this->temperature_high_sensor_ == nullptr && this->temperature_low_sensor_ == nullptr)
     return;
   if (count <= 0) {
-    this->temperature_sensor_->publish_state(NAN);
+    if (this->temperature_high_sensor_ != nullptr)
+      this->temperature_high_sensor_->publish_state(NAN);
+    if (this->temperature_low_sensor_ != nullptr)
+      this->temperature_low_sensor_->publish_state(NAN);
     return;
   }
   float high_c = high / 100.0f;
   float low_c = low / 100.0f;
   ESP_LOGD(TAG, "Temperature sensors: %d, high %.2f°C, low %.2f°C", count, high_c, low_c);
-  this->temperature_sensor_->publish_state(high_c);
+  if (this->temperature_high_sensor_ != nullptr)
+    this->temperature_high_sensor_->publish_state(high_c);
+  if (this->temperature_low_sensor_ != nullptr)
+    this->temperature_low_sensor_->publish_state(low_c);
 }
 
 void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value) {
