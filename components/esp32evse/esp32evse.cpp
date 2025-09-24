@@ -3,15 +3,33 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <inttypes.h>
 
 namespace esphome {
 namespace esp32evse {
 
 static const char *const TAG = "esp32evse";
+
+namespace {
+
+const char *value_after_prefix(const std::string &line, const char *prefix) {
+  const size_t prefix_len = strlen(prefix);
+  if (line.compare(0, prefix_len, prefix) != 0)
+    return nullptr;
+  size_t pos = prefix_len;
+  if (pos < line.size() && (line[pos] == '=' || line[pos] == ':'))
+    ++pos;
+  while (pos < line.size() && isspace(static_cast<unsigned char>(line[pos])))
+    ++pos;
+  return line.c_str() + pos;
+}
+
+}  // namespace
 
 void ESP32EVSEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 EVSE component");
@@ -167,43 +185,43 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     this->handle_ack_(false);
     return;
   }
-  if (line.rfind("+STATE=", 0) == 0) {
-    int value = atoi(line.c_str() + 7);
-    this->update_state_(value);
+  if (const char *value = value_after_prefix(line, "+STATE")) {
+    int state_value = atoi(value);
+    this->update_state_(state_value);
     return;
   }
-  if (line.rfind("+ENABLE=", 0) == 0) {
-    int value = atoi(line.c_str() + 8);
-    this->update_enable_(value == 1);
+  if (const char *value = value_after_prefix(line, "+ENABLE")) {
+    int enable_value = atoi(value);
+    this->update_enable_(enable_value == 1);
     return;
   }
-  if (line.rfind("+TEMP=", 0) == 0) {
+  if (const char *value = value_after_prefix(line, "+TEMP")) {
     int count = 0;
     int32_t high = 0;
     int32_t low = 0;
-    if (sscanf(line.c_str(), "+TEMP=%d,%" PRIi32 ",%" PRIi32, &count, &high, &low) == 3) {
+    if (sscanf(value, "%d,%" PRIi32 ",%" PRIi32, &count, &high, &low) == 3) {
       this->update_temperature_(count, high, low);
     }
     return;
   }
-  if (line.rfind("+CHCUR=", 0) == 0) {
-    int value = atoi(line.c_str() + 7);
-    if (value >= 0)
-      this->update_charging_current_(static_cast<uint16_t>(value));
+  if (const char *value = value_after_prefix(line, "+CHCUR")) {
+    int chcur_value = atoi(value);
+    if (chcur_value >= 0)
+      this->update_charging_current_(static_cast<uint16_t>(chcur_value));
     return;
   }
-  if (line.rfind("+EMETERPOWER=", 0) == 0) {
-    uint32_t power = static_cast<uint32_t>(strtoul(line.c_str() + 13, nullptr, 10));
+  if (const char *value = value_after_prefix(line, "+EMETERPOWER")) {
+    uint32_t power = static_cast<uint32_t>(strtoul(value, nullptr, 10));
     this->update_emeter_power_(power);
     return;
   }
-  if (line.rfind("+EMETERSESTIME=", 0) == 0) {
-    uint32_t time = static_cast<uint32_t>(strtoul(line.c_str() + 15, nullptr, 10));
+  if (const char *value = value_after_prefix(line, "+EMETERSESTIME")) {
+    uint32_t time = static_cast<uint32_t>(strtoul(value, nullptr, 10));
     this->update_emeter_session_time_(time);
     return;
   }
-  if (line.rfind("+EMETERCHTIME=", 0) == 0) {
-    uint32_t time = static_cast<uint32_t>(strtoul(line.c_str() + 14, nullptr, 10));
+  if (const char *value = value_after_prefix(line, "+EMETERCHTIME")) {
+    uint32_t time = static_cast<uint32_t>(strtoul(value, nullptr, 10));
     this->update_emeter_charging_time_(time);
     return;
   }
