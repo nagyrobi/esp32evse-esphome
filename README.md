@@ -1,9 +1,7 @@
 # ESP32EVSE ESPHome Integration
 
 This repository provides an [ESPHome](https://esphome.io/) configuration and custom
-component that exposes the full feature set of the ESP32EVSE charging controller.
-It demonstrates how to integrate telemetry, control, and maintenance operations in
-Home Assistant using ESPHome's native API.
+component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller.
 
 ## Repository layout
 
@@ -11,21 +9,23 @@ Home Assistant using ESPHome's native API.
 - `esphome.yaml` – Example configuration showcasing every supported entity exposed
   by the component.
 
-## Getting started
+## Requirements
 
-1. Install the ESPHome command line tools by following the
-   [official ESPHome installation guide](https://esphome.io/guides/installing_esphome.html).
-2. Update the Wi-Fi credentials in `esphome.yaml` (`wifi.ssid` and `wifi.password`).
-3. Optionally adjust the entity names or number limits in `esphome.yaml` to match
-   your installation.
-4. Connect your ESP32EVSE hardware to your computer via USB and flash the firmware:
+Check out ESPHome [documentation](https://esphome.io/) to learn about the working 
+principle of the integration.
+Check out ESP32-EVSE [documentation]([https://esphome.io/](https://github.com/dzurikmiroslav/esp32-evse/wiki) to learn on how to use ESP32-EVSE
 
-   ```bash
-   esphome run esphome.yaml
-   ```
+You need an ESP32 board supported by ESPHome. The component communicates with ESP32-EVSE (min. version 2.0.0) via UART at 115200 baud rate. 
+Enter your ESP32-EVSE web UI and in _Settings_ > _Serial_, select for the UART port _Mode_: _AT Commands_ and _Baud rate_: _115200_ then press Submit. 
 
-   The initial flash uses the USB connection. Subsequent updates can be performed
-   over-the-air using the ESPHome Dashboard or the same command.
+If you use the [esp32s2-evse-d-a board](https://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32-S2-DA) you can use a 4-pin cable with 2.5mm JST wired correctly for RX/TX/GND/5V:
+
+| ESP32-EVSE S2 DA U6 UART (1 leftmost looking from top, 2.5mm JST) |
+| -------- |
+| 1: GND |
+| 2: TX |
+| 3: RX |
+| 4: +5V |
 
 ## Entities exposed
 
@@ -33,52 +33,47 @@ The example configuration enables every entity type currently supported by the
 custom component. You can selectively disable groups you do not need by removing
 or commenting out the related sections in `esphome.yaml`.
 
-### Binary sensors
-
-- **Pending Authorization** – Indicates when the charger waits for authorization.
-- **Wi-Fi Connected** – Shows the connection status of the Wi-Fi station interface.
-
-### Buttons
-
-- **Fast Power Subscribe / Unsubscribe** – Opt in or out of fast power telemetry
-  updates from the charger.
-- **Reset** – Triggers a software reset of the charger.
-- **Authorize** – Sends an authorization command for the currently connected vehicle.
-
-### Numbers
-
-All numeric controls support configurable minimum/maximum values, step size, and
-communication multiplier where applicable.
-
-- Charging current (instant, default, maximum)
-- Consumption limit (instant, default)
-- Charging time limit (instant, default)
-- Under-power limit (instant, default)
-
 ### Sensors
 
-- Temperature
-- Power, session duration, and charging duration
-- Free heap memory
-- Session and total energy consumption
-- Line voltages (L1/L2/L3)
-- Line currents (L1/L2/L3)
-- Wi-Fi RSSI
+- **Temperatures**
+- **Power**, **session duration**, and **charging duration**
+- **Free heap memory**
+- **Session time** and **total energy consumption**
+- **Line voltages** (L1/L2/L3)
+- **Line currents** (L1/L2/L3)
+- **Wi-Fi RSSI** (signal strength)
 
 ### Switches
 
-- Charging enable – Master enable/disable for the charger.
-- Available – Manually mark the charger as available to clients.
-- Request authorization – Toggle whether authorization is requested for new sessions.
+- **Charging enable** – Master enable/disable for the charger, can be used to start/stop charging.
+- **Available** – Manually mark the charger as available to clients.
+- **Request authorization** – Toggle whether authorization is requested for new sessions.
+
+### Buttons
+
+- **Authorize** – Sends an authorization command for the currently connected vehicle if request authorization was enabled.
+- **Reset** – Triggers a software reset of the charger.
+
+### Binary sensors
+
+- **Pending Authorization** – Indicates when the charger waits for authorization if request authorization was enabled.
+- **Wi-Fi Connected** – Shows the connection status of the Wi-Fi station interface.
+
+### Numbers
+
+- **Charging current** (instant per session, default, maximum possible)
+- **Consumption limit** (instant per session, default)
+- **Charging time limit** (instant per session, default)
+- **Under-power limit** (instant per session, default)
 
 ### Text sensors
 
-- Charger state
-- MCU identification
-- Firmware version and ESP-IDF version
-- Firmware build time and device runtime clock
-- Wi-Fi SSID, IP address, and MAC address
-- Configured device name
+- **Charger state** according to the J1772 standard
+- **Configured device name**
+- **MCU identification**
+- **Firmware version** and **ESP-IDF version**
+- **Firmware build time** and **device runtime clock**
+- **Wi-Fi SSID**, **IP address**, **MAC address**
 
 ## Customization tips
 
@@ -118,5 +113,4 @@ which clears every active subscription:
           id(evse).at_unsub("");
 ```
 
-With the configuration in this repository you can quickly evaluate the ESP32EVSE
-component and tailor it to your own EV charging project.
+
