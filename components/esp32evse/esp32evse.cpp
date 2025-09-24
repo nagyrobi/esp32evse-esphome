@@ -90,7 +90,19 @@ void ESP32EVSEComponent::loop() {
 
 void ESP32EVSEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 EVSE:");
-  LOG_UART_DEVICE(this);
+  auto *uart_parent = this->parent_;
+  if (uart_parent != nullptr) {
+    ESP_LOGCONFIG(TAG, "  UART Baud Rate: %u", uart_parent->get_baud_rate());
+    ESP_LOGCONFIG(TAG, "  UART Data Bits: %u", uart_parent->get_data_bits());
+    ESP_LOGCONFIG(TAG, "  UART Parity: %s", LOG_STR_ARG(uart::parity_to_str(uart_parent->get_parity())));
+    ESP_LOGCONFIG(TAG, "  UART Stop Bits: %u", uart_parent->get_stop_bits());
+    size_t rx_buffer_size = uart_parent->get_rx_buffer_size();
+    if (rx_buffer_size != 0) {
+      ESP_LOGCONFIG(TAG, "  UART RX Buffer Size: %u", rx_buffer_size);
+    }
+  } else {
+    ESP_LOGW(TAG, "  No UART parent configured");
+  }
 }
 
 void ESP32EVSEComponent::request_state_update() { this->send_command_("AT+STATE?"); }
