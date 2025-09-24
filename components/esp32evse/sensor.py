@@ -31,6 +31,7 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_THERMOMETER,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=2,
             ),
             cv.Optional(CONF_EMETER_POWER): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_POWER,
