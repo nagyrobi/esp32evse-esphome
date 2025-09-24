@@ -24,11 +24,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
             cv.Optional(CONF_ENABLE): switch.switch_schema(
                 ESP32EVSEEnableSwitch,
-                icon="mdi:toggle-switch",
+                icon="mdi:power-plug-battery-outline",
             ),
             cv.Optional(CONF_AVAILABLE): switch.switch_schema(
                 ESP32EVSEAvailableSwitch,
-                icon="mdi:check-network",
+                icon="mdi:fuel-cell",
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
             cv.Optional(CONF_REQUEST_AUTHORIZATION): switch.switch_schema(
