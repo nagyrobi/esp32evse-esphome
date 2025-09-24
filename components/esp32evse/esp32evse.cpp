@@ -344,6 +344,10 @@ void ESP32EVSEComponent::unsubscribe_fast_power_updates() {
   this->send_command_("AT+UNSUB=\"+EMETERPOWER\"");
 }
 
+void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
+
+void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }
+
 bool ESP32EVSEComponent::send_command_(const std::string &command, std::function<void(bool)> callback) {
   ESP_LOGV(TAG, "Sending command: %s", command.c_str());
   this->write_str(command.c_str());
@@ -859,13 +863,13 @@ void ESP32EVSEFastUnsubscribeButton::press_action() {
 void ESP32EVSEResetButton::press_action() {
   if (this->parent_ == nullptr)
     return;
-  this->parent_->send_command_("AT+RST");
+  this->parent_->send_reset_command();
 }
 
 void ESP32EVSEAuthorizeButton::press_action() {
   if (this->parent_ == nullptr)
     return;
-  this->parent_->send_command_("AT+AUTH");
+  this->parent_->send_authorize_command();
 }
 
 }  // namespace esp32evse
