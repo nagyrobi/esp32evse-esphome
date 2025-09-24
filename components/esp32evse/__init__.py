@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["uart"]
-CODEOWNERS = ["@dzurikmiroslav"]
+CODEOWNERS = ["@nagyrobi"]
 
 esp32evse_ns = cg.esphome_ns.namespace("esp32evse")
 ESP32EVSEComponent = esp32evse_ns.class_(
