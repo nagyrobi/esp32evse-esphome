@@ -1,3 +1,5 @@
+import inspect
+
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
@@ -15,13 +17,27 @@ ESP32EVSEChargingCurrentNumber = esp32evse_ns.class_(
 CONF_CHARGING_CURRENT = "charging_current"
 
 
+_NUMBER_SCHEMA_KWARGS = {
+    "icon": "mdi:current-ac",
+    "unit_of_measurement": UNIT_AMPERE,
+}
+
+if "min_value" in inspect.signature(number.number_schema).parameters:
+    _NUMBER_SCHEMA_KWARGS.update(
+        {
+            "min_value": 6.0,
+            "max_value": 63.0,
+            "step": 0.1,
+        }
+    )
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
         cv.Required(CONF_CHARGING_CURRENT): number.number_schema(
             ESP32EVSEChargingCurrentNumber,
-            icon="mdi:current-ac",
-            unit_of_measurement=UNIT_AMPERE,
+            **_NUMBER_SCHEMA_KWARGS,
         ).extend(
             {
                 cv.Optional(CONF_MIN_VALUE, default=6.0): cv.float_,

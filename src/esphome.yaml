@@ -1,6 +1,7 @@
 esphome:
   name: esp32evse_dev
-  platform: ESP32
+
+esp32:
   board: esp32dev
 
 logger:
