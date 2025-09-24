@@ -372,6 +372,12 @@ void ESP32EVSEComponent::unsubscribe_fast_power_updates() {
 }
 
 void ESP32EVSEComponent::subscribe_command(const std::string &command, uint32_t period_ms) {
+  if (!this->is_valid_subscription_argument_(command)) {
+    ESP_LOGW(TAG,
+             "Rejected AT+SUB wrapper request with argument '%s'; only subscription targets are allowed",
+             command.c_str());
+    return;
+  }
   ESP_LOGW(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
   std::string cmd = "AT+SUB=" + command + "," + std::to_string(period_ms);
   this->send_command_(cmd);
@@ -384,9 +390,31 @@ void ESP32EVSEComponent::unsubscribe_command(const std::string &command) {
     return;
   }
 
+  if (!this->is_valid_subscription_argument_(command)) {
+    ESP_LOGW(TAG,
+             "Rejected AT+UNSUB wrapper request with argument '%s'; only subscription targets are allowed",
+             command.c_str());
+    return;
+  }
+
   ESP_LOGW(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
   std::string cmd = "AT+UNSUB=" + command;
   this->send_command_(cmd);
+}
+
+bool ESP32EVSEComponent::is_valid_subscription_argument_(const std::string &argument) const {
+  if (argument.empty()) {
+    return false;
+  }
+  for (size_t i = 0; i + 2 < argument.size(); ++i) {
+    char c0 = argument[i];
+    char c1 = argument[i + 1];
+    char c2 = argument[i + 2];
+    if ((c0 == 'A' || c0 == 'a') && (c1 == 'T' || c1 == 't') && c2 == '+') {
+      return false;
+    }
+  }
+  return true;
 }
 
 void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
