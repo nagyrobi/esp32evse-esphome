@@ -176,8 +176,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   void subscribe_fast_power_updates();
   void unsubscribe_fast_power_updates();
-  void subscribe_command(const std::string &command, uint32_t period_ms);
-  void unsubscribe_command(const std::string &command = "");
+  void at_sub(const std::string &command, uint32_t period_ms);
+  void at_unsub(const std::string &command = "");
   void send_reset_command();
   void send_authorize_command();
 
