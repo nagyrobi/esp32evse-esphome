@@ -33,7 +33,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_REQUEST_AUTHORIZATION): switch.switch_schema(
                 ESP32EVSERequestAuthorizationSwitch,
-                icon="mdi:hand-back-right",
+                icon="mdi:hand-back-left-outline",
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
         }
