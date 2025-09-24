@@ -670,7 +670,12 @@ void ESP32EVSEComponent::update_idf_version_(const std::string &idf_version) {
 
 void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
   if (this->build_time_text_sensor_ != nullptr) {
-    this->build_time_text_sensor_->publish_state(build_time);
+    std::string sanitized = build_time;
+    size_t pos = 0;
+    while ((pos = sanitized.find('"', pos)) != std::string::npos) {
+      sanitized.erase(pos, 1);
+    }
+    this->build_time_text_sensor_->publish_state(sanitized);
   }
 }
 
