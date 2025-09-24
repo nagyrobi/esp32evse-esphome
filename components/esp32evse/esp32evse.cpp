@@ -137,12 +137,7 @@ void ESP32EVSEComponent::unsubscribe_fast_power_updates() {
 
 bool ESP32EVSEComponent::send_command_(const std::string &command, std::function<void(bool)> callback) {
   ESP_LOGV(TAG, "Sending command: %s", command.c_str());
-  if (!this->write_str(command.c_str())) {
-    ESP_LOGE(TAG, "Failed to write command: %s", command.c_str());
-    if (callback)
-      callback(false);
-    return false;
-  }
+  this->write_str(command.c_str());
   this->write_str("\r\n");
   PendingCommand pending{command, std::move(callback), millis()};
   this->pending_commands_.push_back(std::move(pending));
