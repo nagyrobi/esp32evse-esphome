@@ -43,13 +43,13 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:wifi", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_WIFI_STA_IP): text_sensor.text_sensor_schema(
-                icon="mdi:ip", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                icon="mdi:ip-network", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_WIFI_STA_MAC): text_sensor.text_sensor_schema(
-                icon="mdi:lan", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                icon="mdi:server-network-outline", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_DEVICE_NAME): text_sensor.text_sensor_schema(
-                icon="mdi:rename-box", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                icon="mdi:label-outline", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     ),
