@@ -22,11 +22,13 @@ class ESP32EVSEChargingCurrentNumber;
 class ESP32EVSEFastSubscribeButton;
 class ESP32EVSEFastUnsubscribeButton;
 
-class ESP32EVSEComponent : public uart::UARTDevice, public Component {
+class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
  public:
+  ESP32EVSEComponent() : PollingComponent(60000) {}
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void update() override;
 
   void set_state_text_sensor(text_sensor::TextSensor *sensor) { this->state_text_sensor_ = sensor; }
   void set_enable_switch(ESP32EVSEEnableSwitch *sw) { this->enable_switch_ = sw; }

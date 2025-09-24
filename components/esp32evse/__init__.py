@@ -9,7 +9,7 @@ CODEOWNERS = ["@dzurikmiroslav"]
 
 esp32evse_ns = cg.esphome_ns.namespace("esp32evse")
 ESP32EVSEComponent = esp32evse_ns.class_(
-    "ESP32EVSEComponent", cg.Component, uart.UARTDevice
+    "ESP32EVSEComponent", cg.PollingComponent, uart.UARTDevice
 )
 
 CONF_ESP32EVSE_ID = "esp32evse_id"
@@ -17,7 +17,7 @@ CONF_ESP32EVSE_ID = "esp32evse_id"
 CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(ESP32EVSEComponent)})
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("60000ms"))
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(

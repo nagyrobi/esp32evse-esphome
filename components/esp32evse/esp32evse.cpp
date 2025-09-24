@@ -46,23 +46,6 @@ void ESP32EVSEComponent::setup() {
 
   });
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->set_interval("temp_poll", 60000, [this]() { this->request_temperature_update(); });
-  }
-  if (this->emeter_power_sensor_ != nullptr) {
-    this->set_interval("emeter_power_poll", 30000, [this]() { this->request_emeter_power_update(); });
-  }
-  if (this->emeter_session_time_sensor_ != nullptr) {
-    this->set_interval("emeter_ses_time_poll", 10000,
-                       [this]() { this->request_emeter_session_time_update(); });
-  }
-  if (this->emeter_charging_time_sensor_ != nullptr) {
-    this->set_interval("emeter_ch_time_poll", 10000,
-                       [this]() { this->request_emeter_charging_time_update(); });
-  }
-  if (this->charging_current_number_ != nullptr) {
-    this->set_interval("chcur_poll", 60000, [this]() { this->request_charging_current_update(); });
-  }
 }
 
 void ESP32EVSEComponent::loop() {
@@ -95,6 +78,27 @@ void ESP32EVSEComponent::loop() {
     if (front.callback)
       front.callback(false);
     this->pending_commands_.pop_front();
+  }
+}
+
+void ESP32EVSEComponent::update() {
+  this->request_state_update();
+  this->request_enable_update();
+
+  if (this->temperature_sensor_ != nullptr) {
+    this->request_temperature_update();
+  }
+  if (this->charging_current_number_ != nullptr) {
+    this->request_charging_current_update();
+  }
+  if (this->emeter_power_sensor_ != nullptr) {
+    this->request_emeter_power_update();
+  }
+  if (this->emeter_session_time_sensor_ != nullptr) {
+    this->request_emeter_session_time_update();
+  }
+  if (this->emeter_charging_time_sensor_ != nullptr) {
+    this->request_emeter_charging_time_update();
   }
 }
 
