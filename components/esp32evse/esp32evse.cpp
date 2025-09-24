@@ -8,7 +8,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <inttypes.h>
+#include <limits>
 
 namespace esphome {
 namespace esp32evse {
@@ -29,23 +31,97 @@ const char *value_after_prefix(const std::string &line, const char *prefix) {
   return line.c_str() + pos;
 }
 
+std::string trim_copy(const char *value) {
+  if (value == nullptr)
+    return {};
+  std::string out(value);
+  size_t start = 0;
+  while (start < out.size() && isspace(static_cast<unsigned char>(out[start])))
+    ++start;
+  size_t end = out.size();
+  while (end > start && isspace(static_cast<unsigned char>(out[end - 1])))
+    --end;
+  out = out.substr(start, end - start);
+  if (out.size() >= 2 && ((out.front() == '"' && out.back() == '"') ||
+                          (out.front() == '\'' && out.back() == '\''))) {
+    out = out.substr(1, out.size() - 2);
+  }
+  return out;
+}
+
 }  // namespace
 
 void ESP32EVSEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 EVSE component");
 
-  // Initial queries
   this->set_timeout(1000, [this]() {
     this->request_state_update();
     this->request_enable_update();
-    this->request_temperature_update();
-    this->request_charging_current_update();
-    this->request_emeter_power_update();
-    this->request_emeter_session_time_update();
-    this->request_emeter_charging_time_update();
+    this->request_pending_authorization_update();
 
+    if (this->temperature_sensor_ != nullptr)
+      this->request_temperature_update();
+    if (this->charging_current_number_ != nullptr)
+      this->request_charging_current_update();
+    if (this->emeter_power_sensor_ != nullptr)
+      this->request_emeter_power_update();
+    if (this->emeter_session_time_sensor_ != nullptr)
+      this->request_emeter_session_time_update();
+    if (this->emeter_charging_time_sensor_ != nullptr)
+      this->request_emeter_charging_time_update();
+    if (this->chip_text_sensor_ != nullptr)
+      this->request_chip_update();
+    if (this->version_text_sensor_ != nullptr)
+      this->request_version_update();
+    if (this->idf_version_text_sensor_ != nullptr)
+      this->request_idf_version_update();
+    if (this->build_time_text_sensor_ != nullptr)
+      this->request_build_time_update();
+    if (this->device_time_text_sensor_ != nullptr)
+      this->request_device_time_update();
+    if (this->wifi_sta_ssid_text_sensor_ != nullptr)
+      this->request_wifi_sta_cfg_update();
+    if (this->wifi_sta_ip_text_sensor_ != nullptr)
+      this->request_wifi_sta_ip_update();
+    if (this->wifi_sta_mac_text_sensor_ != nullptr)
+      this->request_wifi_sta_mac_update();
+    if (this->device_name_text_sensor_ != nullptr)
+      this->request_device_name_update();
+    if (this->available_switch_ != nullptr)
+      this->request_available_update();
+    if (this->request_authorization_switch_ != nullptr)
+      this->request_request_authorization_update();
+    if (this->heap_sensor_ != nullptr)
+      this->request_heap_update();
+    if (this->energy_consumption_sensor_ != nullptr)
+      this->request_energy_consumption_update();
+    if (this->total_energy_consumption_sensor_ != nullptr)
+      this->request_total_energy_consumption_update();
+    if (this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
+        this->voltage_l3_sensor_ != nullptr)
+      this->request_voltage_update();
+    if (this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
+        this->current_l3_sensor_ != nullptr)
+      this->request_current_update();
+    if (this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr)
+      this->request_wifi_status_update();
+    if (this->default_charging_current_number_ != nullptr)
+      this->request_default_charging_current_update();
+    if (this->maximum_charging_current_number_ != nullptr)
+      this->request_maximum_charging_current_update();
+    if (this->consumption_limit_number_ != nullptr)
+      this->request_consumption_limit_update();
+    if (this->default_consumption_limit_number_ != nullptr)
+      this->request_default_consumption_limit_update();
+    if (this->charging_time_limit_number_ != nullptr)
+      this->request_charging_time_limit_update();
+    if (this->default_charging_time_limit_number_ != nullptr)
+      this->request_default_charging_time_limit_update();
+    if (this->under_power_limit_number_ != nullptr)
+      this->request_under_power_limit_update();
+    if (this->default_under_power_limit_number_ != nullptr)
+      this->request_default_under_power_limit_update();
   });
-
 }
 
 void ESP32EVSEComponent::loop() {
@@ -67,7 +143,6 @@ void ESP32EVSEComponent::loop() {
     }
   }
 
-  // Handle command timeouts (5 seconds)
   const uint32_t now = millis();
   while (!this->pending_commands_.empty()) {
     auto &front = this->pending_commands_.front();
@@ -84,22 +159,52 @@ void ESP32EVSEComponent::loop() {
 void ESP32EVSEComponent::update() {
   this->request_state_update();
   this->request_enable_update();
+  this->request_pending_authorization_update();
 
-  if (this->temperature_sensor_ != nullptr) {
+  if (this->temperature_sensor_ != nullptr)
     this->request_temperature_update();
-  }
-  if (this->charging_current_number_ != nullptr) {
+  if (this->charging_current_number_ != nullptr)
     this->request_charging_current_update();
-  }
-  if (this->emeter_power_sensor_ != nullptr) {
+  if (this->emeter_power_sensor_ != nullptr)
     this->request_emeter_power_update();
-  }
-  if (this->emeter_session_time_sensor_ != nullptr) {
+  if (this->emeter_session_time_sensor_ != nullptr)
     this->request_emeter_session_time_update();
-  }
-  if (this->emeter_charging_time_sensor_ != nullptr) {
+  if (this->emeter_charging_time_sensor_ != nullptr)
     this->request_emeter_charging_time_update();
-  }
+  if (this->heap_sensor_ != nullptr)
+    this->request_heap_update();
+  if (this->energy_consumption_sensor_ != nullptr)
+    this->request_energy_consumption_update();
+  if (this->total_energy_consumption_sensor_ != nullptr)
+    this->request_total_energy_consumption_update();
+  if (this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
+      this->voltage_l3_sensor_ != nullptr)
+    this->request_voltage_update();
+  if (this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
+      this->current_l3_sensor_ != nullptr)
+    this->request_current_update();
+  if (this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr)
+    this->request_wifi_status_update();
+  if (this->available_switch_ != nullptr)
+    this->request_available_update();
+  if (this->request_authorization_switch_ != nullptr)
+    this->request_request_authorization_update();
+  if (this->default_charging_current_number_ != nullptr)
+    this->request_default_charging_current_update();
+  if (this->maximum_charging_current_number_ != nullptr)
+    this->request_maximum_charging_current_update();
+  if (this->consumption_limit_number_ != nullptr)
+    this->request_consumption_limit_update();
+  if (this->default_consumption_limit_number_ != nullptr)
+    this->request_default_consumption_limit_update();
+  if (this->charging_time_limit_number_ != nullptr)
+    this->request_charging_time_limit_update();
+  if (this->default_charging_time_limit_number_ != nullptr)
+    this->request_default_charging_time_limit_update();
+  if (this->under_power_limit_number_ != nullptr)
+    this->request_under_power_limit_update();
+  if (this->default_under_power_limit_number_ != nullptr)
+    this->request_default_under_power_limit_update();
 }
 
 void ESP32EVSEComponent::dump_config() {
@@ -130,6 +235,56 @@ void ESP32EVSEComponent::request_emeter_session_time_update() {
 void ESP32EVSEComponent::request_emeter_charging_time_update() {
   this->send_command_("AT+EMETERCHTIME?");
 }
+void ESP32EVSEComponent::request_chip_update() { this->send_command_("AT+CHIP?"); }
+void ESP32EVSEComponent::request_version_update() { this->send_command_("AT+VER?"); }
+void ESP32EVSEComponent::request_idf_version_update() { this->send_command_("AT+IDFVER?"); }
+void ESP32EVSEComponent::request_build_time_update() { this->send_command_("AT+BUILDTIME?"); }
+void ESP32EVSEComponent::request_device_time_update() { this->send_command_("AT+TIME?"); }
+void ESP32EVSEComponent::request_wifi_sta_cfg_update() { this->send_command_("AT+WIFISTACFG?"); }
+void ESP32EVSEComponent::request_wifi_sta_ip_update() { this->send_command_("AT+WIFISTAIP?"); }
+void ESP32EVSEComponent::request_wifi_sta_mac_update() { this->send_command_("AT+WIFISTAMAC?"); }
+void ESP32EVSEComponent::request_device_name_update() { this->send_command_("AT+DEVNAME?"); }
+void ESP32EVSEComponent::request_available_update() { this->send_command_("AT+AVAILABLE?"); }
+void ESP32EVSEComponent::request_request_authorization_update() {
+  this->send_command_("AT+REQAUTH?");
+}
+void ESP32EVSEComponent::request_heap_update() { this->send_command_("AT+HEAP?"); }
+void ESP32EVSEComponent::request_energy_consumption_update() {
+  this->send_command_("AT+EMETERCONSUM?");
+}
+void ESP32EVSEComponent::request_total_energy_consumption_update() {
+  this->send_command_("AT+EMETERTOTCONSUM?");
+}
+void ESP32EVSEComponent::request_voltage_update() { this->send_command_("AT+EMETERVOLTAGE?"); }
+void ESP32EVSEComponent::request_current_update() { this->send_command_("AT+EMETERCURRENT?"); }
+void ESP32EVSEComponent::request_wifi_status_update() { this->send_command_("AT+WIFISTACONN?"); }
+void ESP32EVSEComponent::request_default_charging_current_update() {
+  this->send_command_("AT+DEFCHCUR?");
+}
+void ESP32EVSEComponent::request_maximum_charging_current_update() {
+  this->send_command_("AT+MAXCHCUR?");
+}
+void ESP32EVSEComponent::request_consumption_limit_update() {
+  this->send_command_("AT+CONSUMLIM?");
+}
+void ESP32EVSEComponent::request_default_consumption_limit_update() {
+  this->send_command_("AT+DEFCONSUMLIM?");
+}
+void ESP32EVSEComponent::request_charging_time_limit_update() {
+  this->send_command_("AT+CHTIMELIM?");
+}
+void ESP32EVSEComponent::request_default_charging_time_limit_update() {
+  this->send_command_("AT+DEFCHTIMELIM?");
+}
+void ESP32EVSEComponent::request_under_power_limit_update() {
+  this->send_command_("AT+UNDERPOWERLIM?");
+}
+void ESP32EVSEComponent::request_default_under_power_limit_update() {
+  this->send_command_("AT+DEFUNDERPOWERLIM?");
+}
+void ESP32EVSEComponent::request_pending_authorization_update() {
+  this->send_command_("AT+PENDAUTH?");
+}
 
 void ESP32EVSEComponent::write_enable_state(bool enabled) {
   std::string command = "AT+ENABLE=";
@@ -141,14 +296,42 @@ void ESP32EVSEComponent::write_enable_state(bool enabled) {
   });
 }
 
-void ESP32EVSEComponent::write_charging_current(float current) {
-  if (current < 0.0f)
-    current = 0.0f;
-  uint16_t tenths = static_cast<uint16_t>(std::roundf(current * 10.0f));
-  std::string command = "AT+CHCUR=" + std::to_string(tenths);
+void ESP32EVSEComponent::write_available_state(bool available) {
+  std::string command = "AT+AVAILABLE=";
+  command += available ? '1' : '0';
   this->send_command_(command, [this](bool success) {
-    if (!success && this->charging_current_number_ != nullptr) {
-      this->request_charging_current_update();
+    if (!success && this->available_switch_ != nullptr) {
+      this->request_available_update();
+    }
+  });
+}
+
+void ESP32EVSEComponent::write_request_authorization_state(bool request) {
+  std::string command = "AT+REQAUTH=";
+  command += request ? '1' : '0';
+  this->send_command_(command, [this](bool success) {
+    if (!success && this->request_authorization_switch_ != nullptr) {
+      this->request_request_authorization_update();
+    }
+  });
+}
+
+void ESP32EVSEComponent::write_charging_current(float current) {
+  this->write_number_value(this->charging_current_number_, current);
+}
+
+void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *number, float value) {
+  if (number == nullptr)
+    return;
+  const std::string &command = number->get_command();
+  if (command.empty())
+    return;
+  float scaled_value = value * number->get_multiplier();
+  int32_t to_send = static_cast<int32_t>(std::lroundf(scaled_value));
+  std::string cmd = command + "=" + to_string(to_send);
+  this->send_command_(cmd, [this, number](bool success) {
+    if (!success) {
+      this->request_number_update_(number);
     }
   });
 }
@@ -220,6 +403,148 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     this->update_emeter_charging_time_(time);
     return;
   }
+  if (const char *value = value_after_prefix(line, "+CHIP")) {
+    this->update_chip_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+VER")) {
+    this->update_version_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+IDFVER")) {
+    this->update_idf_version_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+BUILDTIME")) {
+    this->update_build_time_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+TIME")) {
+    uint32_t timestamp = static_cast<uint32_t>(strtoul(value, nullptr, 10));
+    this->update_device_time_(timestamp);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+WIFISTACFG")) {
+    std::string ssid = trim_copy(value);
+    size_t comma = ssid.find(',');
+    if (comma != std::string::npos)
+      ssid = ssid.substr(0, comma);
+    this->update_wifi_sta_cfg_(ssid);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+WIFISTAIP")) {
+    this->update_wifi_sta_ip_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+WIFISTAMAC")) {
+    this->update_wifi_sta_mac_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+DEVNAME")) {
+    this->update_device_name_(trim_copy(value));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+AVAILABLE")) {
+    int available = atoi(value);
+    this->update_available_(available == 1);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+REQAUTH")) {
+    int req = atoi(value);
+    this->update_request_authorization_(req == 1);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+HEAP")) {
+    uint32_t heap = static_cast<uint32_t>(strtoul(value, nullptr, 10));
+    this->update_heap_(heap);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+EMETERCONSUM")) {
+    float consum = strtof(value, nullptr);
+    this->update_energy_consumption_(consum);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+EMETERTOTCONSUM")) {
+    float consum = strtof(value, nullptr);
+    this->update_total_energy_consumption_(consum);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+EMETERVOLTAGE")) {
+    float l1 = NAN;
+    float l2 = NAN;
+    float l3 = NAN;
+    if (sscanf(value, "%f,%f,%f", &l1, &l2, &l3) == 3) {
+      this->update_voltages_(l1, l2, l3);
+    }
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+EMETERCURRENT")) {
+    float l1 = NAN;
+    float l2 = NAN;
+    float l3 = NAN;
+    if (sscanf(value, "%f,%f,%f", &l1, &l2, &l3) == 3) {
+      this->update_currents_(l1, l2, l3);
+    }
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+WIFISTACONN")) {
+    int connected = 0;
+    int rssi = std::numeric_limits<int>::min();
+    int parsed = sscanf(value, "%d,%d", &connected, &rssi);
+    if (parsed >= 1) {
+      if (parsed < 2) {
+        rssi = std::numeric_limits<int>::min();
+      }
+      this->update_wifi_status_(connected == 1, rssi);
+    }
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+DEFCHCUR")) {
+    int val = atoi(value);
+    this->update_default_charging_current_(static_cast<uint16_t>(val));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+MAXCHCUR")) {
+    int val = atoi(value);
+    this->update_maximum_charging_current_(static_cast<uint16_t>(val));
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+CONSUMLIM")) {
+    float val = strtof(value, nullptr);
+    this->update_consumption_limit_(val);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+DEFCONSUMLIM")) {
+    float val = strtof(value, nullptr);
+    this->update_default_consumption_limit_(val);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+CHTIMELIM")) {
+    uint32_t val = static_cast<uint32_t>(strtoul(value, nullptr, 10));
+    this->update_charging_time_limit_(val);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+DEFCHTIMELIM")) {
+    uint32_t val = static_cast<uint32_t>(strtoul(value, nullptr, 10));
+    this->update_default_charging_time_limit_(val);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+UNDERPOWERLIM")) {
+    float val = strtof(value, nullptr);
+    this->update_under_power_limit_(val);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+DEFUNDERPOWERLIM")) {
+    float val = strtof(value, nullptr);
+    this->update_default_under_power_limit_(val);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+PENDAUTH")) {
+    int val = atoi(value);
+    this->update_pending_authorization_(val == 1);
+    return;
+  }
+
   ESP_LOGD(TAG, "Unhandled line: %s", line.c_str());
 }
 
@@ -265,11 +590,18 @@ void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t lo
   this->temperature_sensor_->publish_state(high_c);
 }
 
+void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value) {
+  if (number == nullptr)
+    return;
+  float multiplier = number->get_multiplier();
+  if (multiplier == 0.0f)
+    multiplier = 1.0f;
+  float value = raw_value / multiplier;
+  number->publish_state(value);
+}
+
 void ESP32EVSEComponent::update_charging_current_(uint16_t value_tenths) {
-  if (this->charging_current_number_ != nullptr) {
-    float current = value_tenths / 10.0f;
-    this->charging_current_number_->publish_state(current);
-  }
+  this->publish_scaled_number_(this->charging_current_number_, value_tenths);
 }
 
 void ESP32EVSEComponent::update_emeter_power_(uint32_t power_w) {
@@ -290,11 +622,213 @@ void ESP32EVSEComponent::update_emeter_charging_time_(uint32_t time_s) {
   }
 }
 
+void ESP32EVSEComponent::update_chip_(const std::string &chip) {
+  if (this->chip_text_sensor_ != nullptr) {
+    this->chip_text_sensor_->publish_state(chip);
+  }
+}
+
+void ESP32EVSEComponent::update_version_(const std::string &version) {
+  if (this->version_text_sensor_ != nullptr) {
+    this->version_text_sensor_->publish_state(version);
+  }
+}
+
+void ESP32EVSEComponent::update_idf_version_(const std::string &idf_version) {
+  if (this->idf_version_text_sensor_ != nullptr) {
+    this->idf_version_text_sensor_->publish_state(idf_version);
+  }
+}
+
+void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
+  if (this->build_time_text_sensor_ != nullptr) {
+    this->build_time_text_sensor_->publish_state(build_time);
+  }
+}
+
+void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
+  if (this->device_time_text_sensor_ == nullptr)
+    return;
+  time_t raw_time = static_cast<time_t>(timestamp);
+  struct tm tm_info;
+  if (!localtime_r(&raw_time, &tm_info)) {
+    this->device_time_text_sensor_->publish_state("invalid");
+    return;
+  }
+  char buffer[32];
+  if (strftime(buffer, sizeof(buffer), "%d-%m-%y %H:%M:%S", &tm_info) == 0) {
+    this->device_time_text_sensor_->publish_state("invalid");
+    return;
+  }
+  this->device_time_text_sensor_->publish_state(buffer);
+}
+
+void ESP32EVSEComponent::update_wifi_sta_cfg_(const std::string &ssid) {
+  if (this->wifi_sta_ssid_text_sensor_ != nullptr) {
+    this->wifi_sta_ssid_text_sensor_->publish_state(ssid);
+  }
+}
+
+void ESP32EVSEComponent::update_wifi_sta_ip_(const std::string &ip) {
+  if (this->wifi_sta_ip_text_sensor_ != nullptr) {
+    this->wifi_sta_ip_text_sensor_->publish_state(ip);
+  }
+}
+
+void ESP32EVSEComponent::update_wifi_sta_mac_(const std::string &mac) {
+  if (this->wifi_sta_mac_text_sensor_ != nullptr) {
+    this->wifi_sta_mac_text_sensor_->publish_state(mac);
+  }
+}
+
+void ESP32EVSEComponent::update_device_name_(const std::string &name) {
+  if (this->device_name_text_sensor_ != nullptr) {
+    this->device_name_text_sensor_->publish_state(name);
+  }
+}
+
+void ESP32EVSEComponent::update_available_(bool available) {
+  if (this->available_switch_ != nullptr) {
+    this->available_switch_->publish_state(available);
+  }
+}
+
+void ESP32EVSEComponent::update_request_authorization_(bool request) {
+  if (this->request_authorization_switch_ != nullptr) {
+    this->request_authorization_switch_->publish_state(request);
+  }
+}
+
+void ESP32EVSEComponent::update_heap_(uint32_t heap_bytes) {
+  if (this->heap_sensor_ != nullptr) {
+    this->heap_sensor_->publish_state(heap_bytes);
+  }
+}
+
+void ESP32EVSEComponent::update_energy_consumption_(float value) {
+  if (this->energy_consumption_sensor_ != nullptr) {
+    this->energy_consumption_sensor_->publish_state(value);
+  }
+}
+
+void ESP32EVSEComponent::update_total_energy_consumption_(float value) {
+  if (this->total_energy_consumption_sensor_ != nullptr) {
+    this->total_energy_consumption_sensor_->publish_state(value);
+  }
+}
+
+void ESP32EVSEComponent::update_voltages_(float l1, float l2, float l3) {
+  if (this->voltage_l1_sensor_ != nullptr)
+    this->voltage_l1_sensor_->publish_state(l1);
+  if (this->voltage_l2_sensor_ != nullptr)
+    this->voltage_l2_sensor_->publish_state(l2);
+  if (this->voltage_l3_sensor_ != nullptr)
+    this->voltage_l3_sensor_->publish_state(l3);
+}
+
+void ESP32EVSEComponent::update_currents_(float l1, float l2, float l3) {
+  if (this->current_l1_sensor_ != nullptr)
+    this->current_l1_sensor_->publish_state(l1);
+  if (this->current_l2_sensor_ != nullptr)
+    this->current_l2_sensor_->publish_state(l2);
+  if (this->current_l3_sensor_ != nullptr)
+    this->current_l3_sensor_->publish_state(l3);
+}
+
+void ESP32EVSEComponent::update_wifi_status_(bool connected, int rssi) {
+  if (this->wifi_connected_binary_sensor_ != nullptr) {
+    this->wifi_connected_binary_sensor_->publish_state(connected);
+  }
+  if (this->wifi_rssi_sensor_ != nullptr) {
+    if (connected && rssi != std::numeric_limits<int>::min()) {
+      this->wifi_rssi_sensor_->publish_state(rssi);
+    } else {
+      this->wifi_rssi_sensor_->publish_state(NAN);
+    }
+  }
+}
+
+void ESP32EVSEComponent::update_default_charging_current_(uint16_t value_tenths) {
+  this->publish_scaled_number_(this->default_charging_current_number_, value_tenths);
+}
+
+void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_tenths) {
+  this->publish_scaled_number_(this->maximum_charging_current_number_, value_tenths);
+}
+
+void ESP32EVSEComponent::update_consumption_limit_(float value) {
+  this->publish_scaled_number_(this->consumption_limit_number_, value);
+}
+
+void ESP32EVSEComponent::update_default_consumption_limit_(float value) {
+  this->publish_scaled_number_(this->default_consumption_limit_number_, value);
+}
+
+void ESP32EVSEComponent::update_charging_time_limit_(uint32_t value) {
+  this->publish_scaled_number_(this->charging_time_limit_number_, static_cast<float>(value));
+}
+
+void ESP32EVSEComponent::update_default_charging_time_limit_(uint32_t value) {
+  this->publish_scaled_number_(this->default_charging_time_limit_number_, static_cast<float>(value));
+}
+
+void ESP32EVSEComponent::update_under_power_limit_(float value) {
+  this->publish_scaled_number_(this->under_power_limit_number_, value);
+}
+
+void ESP32EVSEComponent::update_default_under_power_limit_(float value) {
+  this->publish_scaled_number_(this->default_under_power_limit_number_, value);
+}
+
+void ESP32EVSEComponent::update_pending_authorization_(bool pending) {
+  if (this->pending_authorization_binary_sensor_ != nullptr) {
+    this->pending_authorization_binary_sensor_->publish_state(pending);
+  }
+}
+
+void ESP32EVSEComponent::request_number_update_(ESP32EVSEChargingCurrentNumber *number) {
+  if (number == nullptr)
+    return;
+  if (number == this->charging_current_number_) {
+    this->request_charging_current_update();
+  } else if (number == this->default_charging_current_number_) {
+    this->request_default_charging_current_update();
+  } else if (number == this->maximum_charging_current_number_) {
+    this->request_maximum_charging_current_update();
+  } else if (number == this->consumption_limit_number_) {
+    this->request_consumption_limit_update();
+  } else if (number == this->default_consumption_limit_number_) {
+    this->request_default_consumption_limit_update();
+  } else if (number == this->charging_time_limit_number_) {
+    this->request_charging_time_limit_update();
+  } else if (number == this->default_charging_time_limit_number_) {
+    this->request_default_charging_time_limit_update();
+  } else if (number == this->under_power_limit_number_) {
+    this->request_under_power_limit_update();
+  } else if (number == this->default_under_power_limit_number_) {
+    this->request_default_under_power_limit_update();
+  }
+}
+
 void ESP32EVSEEnableSwitch::write_state(bool state) {
   if (this->parent_ == nullptr)
     return;
   this->publish_state(state);
   this->parent_->write_enable_state(state);
+}
+
+void ESP32EVSEAvailableSwitch::write_state(bool state) {
+  if (this->parent_ == nullptr)
+    return;
+  this->publish_state(state);
+  this->parent_->write_available_state(state);
+}
+
+void ESP32EVSERequestAuthorizationSwitch::write_state(bool state) {
+  if (this->parent_ == nullptr)
+    return;
+  this->publish_state(state);
+  this->parent_->write_request_authorization_state(state);
 }
 
 ESP32EVSEChargingCurrentNumber::ESP32EVSEChargingCurrentNumber() {
@@ -307,7 +841,7 @@ void ESP32EVSEChargingCurrentNumber::control(float value) {
   if (this->parent_ == nullptr)
     return;
   this->publish_state(value);
-  this->parent_->write_charging_current(value);
+  this->parent_->write_number_value(this, value);
 }
 
 void ESP32EVSEFastSubscribeButton::press_action() {
@@ -320,6 +854,18 @@ void ESP32EVSEFastUnsubscribeButton::press_action() {
   if (this->parent_ == nullptr)
     return;
   this->parent_->unsubscribe_fast_power_updates();
+}
+
+void ESP32EVSEResetButton::press_action() {
+  if (this->parent_ == nullptr)
+    return;
+  this->parent_->send_command_("AT+RST");
+}
+
+void ESP32EVSEAuthorizeButton::press_action() {
+  if (this->parent_ == nullptr)
+    return;
+  this->parent_->send_command_("AT+AUTH");
 }
 
 }  // namespace esp32evse

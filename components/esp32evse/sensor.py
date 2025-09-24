@@ -2,14 +2,22 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     ICON_FLASH,
     ICON_THERMOMETER,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
+    UNIT_AMPERE,
+    UNIT_BYTE,
     UNIT_CELSIUS,
+    UNIT_DECIBEL_MILLIWATT,
     UNIT_SECOND,
+    UNIT_VOLT,
+    UNIT_WATT_HOUR,
 )
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent
@@ -20,6 +28,16 @@ CONF_TEMPERATURE = "temperature"
 CONF_EMETER_POWER = "emeter_power"
 CONF_EMETER_SESSION_TIME = "emeter_session_time"
 CONF_EMETER_CHARGING_TIME = "emeter_charging_time"
+CONF_HEAP = "heap"
+CONF_ENERGY_CONSUMPTION = "energy_consumption"
+CONF_TOTAL_ENERGY_CONSUMPTION = "total_energy_consumption"
+CONF_VOLTAGE_L1 = "voltage_l1"
+CONF_VOLTAGE_L2 = "voltage_l2"
+CONF_VOLTAGE_L3 = "voltage_l3"
+CONF_CURRENT_L1 = "current_l1"
+CONF_CURRENT_L2 = "current_l2"
+CONF_CURRENT_L3 = "current_l3"
+CONF_WIFI_RSSI = "wifi_rssi"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -49,6 +67,63 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_TIMER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_HEAP): sensor.sensor_schema(
+                unit_of_measurement=UNIT_BYTE,
+                icon="mdi:memory",
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_ENERGY_CONSUMPTION): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT_HOUR,
+                icon="mdi:counter",
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TOTAL_ENERGY_CONSUMPTION): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT_HOUR,
+                icon="mdi:counter",
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_VOLTAGE_L1): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                icon="mdi:alpha-v-circle",
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_VOLTAGE_L2): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                icon="mdi:alpha-v-circle",
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_VOLTAGE_L3): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                icon="mdi:alpha-v-circle",
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT_L1): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                icon="mdi:alpha-a-circle",
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT_L2): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                icon="mdi:alpha-a-circle",
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT_L3): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                icon="mdi:alpha-a-circle",
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_WIFI_RSSI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+                icon="mdi:wifi-strength-2",
+                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     ),
     cv.has_at_least_one_key(
@@ -56,6 +131,16 @@ CONFIG_SCHEMA = cv.All(
         CONF_EMETER_POWER,
         CONF_EMETER_SESSION_TIME,
         CONF_EMETER_CHARGING_TIME,
+        CONF_HEAP,
+        CONF_ENERGY_CONSUMPTION,
+        CONF_TOTAL_ENERGY_CONSUMPTION,
+        CONF_VOLTAGE_L1,
+        CONF_VOLTAGE_L2,
+        CONF_VOLTAGE_L3,
+        CONF_CURRENT_L1,
+        CONF_CURRENT_L2,
+        CONF_CURRENT_L3,
+        CONF_WIFI_RSSI,
     ),
 )
 
@@ -75,3 +160,33 @@ async def to_code(config):
     if charging_config := config.get(CONF_EMETER_CHARGING_TIME):
         sens = await sensor.new_sensor(charging_config)
         cg.add(parent.set_emeter_charging_time_sensor(sens))
+    if heap_config := config.get(CONF_HEAP):
+        sens = await sensor.new_sensor(heap_config)
+        cg.add(parent.set_heap_sensor(sens))
+    if energy_config := config.get(CONF_ENERGY_CONSUMPTION):
+        sens = await sensor.new_sensor(energy_config)
+        cg.add(parent.set_energy_consumption_sensor(sens))
+    if total_energy_config := config.get(CONF_TOTAL_ENERGY_CONSUMPTION):
+        sens = await sensor.new_sensor(total_energy_config)
+        cg.add(parent.set_total_energy_consumption_sensor(sens))
+    if voltage_l1_config := config.get(CONF_VOLTAGE_L1):
+        sens = await sensor.new_sensor(voltage_l1_config)
+        cg.add(parent.set_voltage_l1_sensor(sens))
+    if voltage_l2_config := config.get(CONF_VOLTAGE_L2):
+        sens = await sensor.new_sensor(voltage_l2_config)
+        cg.add(parent.set_voltage_l2_sensor(sens))
+    if voltage_l3_config := config.get(CONF_VOLTAGE_L3):
+        sens = await sensor.new_sensor(voltage_l3_config)
+        cg.add(parent.set_voltage_l3_sensor(sens))
+    if current_l1_config := config.get(CONF_CURRENT_L1):
+        sens = await sensor.new_sensor(current_l1_config)
+        cg.add(parent.set_current_l1_sensor(sens))
+    if current_l2_config := config.get(CONF_CURRENT_L2):
+        sens = await sensor.new_sensor(current_l2_config)
+        cg.add(parent.set_current_l2_sensor(sens))
+    if current_l3_config := config.get(CONF_CURRENT_L3):
+        sens = await sensor.new_sensor(current_l3_config)
+        cg.add(parent.set_current_l3_sensor(sens))
+    if wifi_rssi_config := config.get(CONF_WIFI_RSSI):
+        sens = await sensor.new_sensor(wifi_rssi_config)
+        cg.add(parent.set_wifi_rssi_sensor(sens))
