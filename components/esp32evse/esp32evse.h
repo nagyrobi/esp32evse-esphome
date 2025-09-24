@@ -176,6 +176,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   void subscribe_fast_power_updates();
   void unsubscribe_fast_power_updates();
+  void send_reset_command();
+  void send_authorize_command();
 
  protected:
   struct PendingCommand {
