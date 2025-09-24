@@ -61,52 +61,22 @@ number:
     esp32evse_id: evse
     charging_current:
       name: "EVSE Charging Current"
-      min_value: 6
-      max_value: 63
-      step: 0.1
-      multiplier: 10
     default_charging_current:
       name: "EVSE Default Charging Current"
-      min_value: 6
-      max_value: 63
-      step: 0.1
-      multiplier: 10
     maximum_charging_current:
       name: "EVSE Maximum Charging Current"
-      min_value: 6
-      max_value: 63
-      step: 0.1
-      multiplier: 10
     consumption_limit:
       name: "EVSE Consumption Limit"
-      min_value: 0
-      max_value: 100000
-      step: 10
     default_consumption_limit:
       name: "EVSE Default Consumption Limit"
-      min_value: 0
-      max_value: 100000
-      step: 10
     charging_time_limit:
       name: "EVSE Charging Time Limit"
-      min_value: 0
-      max_value: 86400
-      step: 60
     default_charging_time_limit:
       name: "EVSE Default Charging Time Limit"
-      min_value: 0
-      max_value: 86400
-      step: 60
     under_power_limit:
       name: "EVSE Under Power Limit"
-      min_value: 0
-      max_value: 100000
-      step: 10
     default_under_power_limit:
       name: "EVSE Default Under Power Limit"
-      min_value: 0
-      max_value: 100000
-      step: 10
 
 sensor:
   - platform: esp32evse

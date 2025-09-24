@@ -61,130 +61,124 @@ def _build_number_schema(
             }
         )
     base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
-    return base.extend(
+    schema = base.extend(
         {
-            cv.Optional(CONF_MIN_VALUE, default=default_min): cv.float_,
-            cv.Optional(CONF_MAX_VALUE, default=default_max): cv.float_,
-            cv.Optional(CONF_STEP, default=default_step): cv.positive_float,
-            cv.Optional(CONF_MULTIPLIER, default=default_multiplier): cv.positive_float,
+            cv.Optional(CONF_MIN_VALUE): cv.float_,
+            cv.Optional(CONF_MAX_VALUE): cv.float_,
+            cv.Optional(CONF_STEP): cv.positive_float,
+            cv.Optional(CONF_MULTIPLIER): cv.positive_float,
         }
     )
+    defaults = {
+        CONF_MIN_VALUE: default_min,
+        CONF_MAX_VALUE: default_max,
+        CONF_STEP: default_step,
+        CONF_MULTIPLIER: default_multiplier,
+    }
+    return schema, defaults
+
+
+def _make_number_type(*, command, setter, **kwargs):
+    schema, defaults = _build_number_schema(**kwargs)
+    return {"schema": schema, "defaults": defaults, "command": command, "setter": setter}
 
 
 _NUMBER_TYPES = {
-    CONF_CHARGING_CURRENT: {
-        "schema": _build_number_schema(
-            icon="mdi:current-ac",
-            unit=UNIT_AMPERE,
-            default_min=6.0,
-            default_max=63.0,
-            default_step=0.1,
-            default_multiplier=10.0,
-        ),
-        "command": "AT+CHCUR",
-        "setter": "set_charging_current_number",
-    },
-    CONF_DEFAULT_CHARGING_CURRENT: {
-        "schema": _build_number_schema(
-            icon="mdi:current-ac",
-            unit=UNIT_AMPERE,
-            default_min=6.0,
-            default_max=63.0,
-            default_step=0.1,
-            default_multiplier=10.0,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        "command": "AT+DEFCHCUR",
-        "setter": "set_default_charging_current_number",
-    },
-    CONF_MAXIMUM_CHARGING_CURRENT: {
-        "schema": _build_number_schema(
-            icon="mdi:current-ac",
-            unit=UNIT_AMPERE,
-            default_min=6.0,
-            default_max=63.0,
-            default_step=0.1,
-            default_multiplier=10.0,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        "command": "AT+MAXCHCUR",
-        "setter": "set_maximum_charging_current_number",
-    },
-    CONF_CONSUMPTION_LIMIT: {
-        "schema": _build_number_schema(
-            icon="mdi:gauge",
-            unit=UNIT_WATT,
-            default_min=0.0,
-            default_max=100000.0,
-            default_step=10.0,
-            default_multiplier=1.0,
-        ),
-        "command": "AT+CONSUMLIM",
-        "setter": "set_consumption_limit_number",
-    },
-    CONF_DEFAULT_CONSUMPTION_LIMIT: {
-        "schema": _build_number_schema(
-            icon="mdi:gauge",
-            unit=UNIT_WATT,
-            default_min=0.0,
-            default_max=100000.0,
-            default_step=10.0,
-            default_multiplier=1.0,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        "command": "AT+DEFCONSUMLIM",
-        "setter": "set_default_consumption_limit_number",
-    },
-    CONF_CHARGING_TIME_LIMIT: {
-        "schema": _build_number_schema(
-            icon="mdi:timer-outline",
-            unit=UNIT_SECOND,
-            default_min=0.0,
-            default_max=86400.0,
-            default_step=60.0,
-            default_multiplier=1.0,
-        ),
-        "command": "AT+CHTIMELIM",
-        "setter": "set_charging_time_limit_number",
-    },
-    CONF_DEFAULT_CHARGING_TIME_LIMIT: {
-        "schema": _build_number_schema(
-            icon="mdi:timer-outline",
-            unit=UNIT_SECOND,
-            default_min=0.0,
-            default_max=86400.0,
-            default_step=60.0,
-            default_multiplier=1.0,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        "command": "AT+DEFCHTIMELIM",
-        "setter": "set_default_charging_time_limit_number",
-    },
-    CONF_UNDER_POWER_LIMIT: {
-        "schema": _build_number_schema(
-            icon="mdi:flash-outline",
-            unit=UNIT_WATT,
-            default_min=0.0,
-            default_max=100000.0,
-            default_step=10.0,
-            default_multiplier=1.0,
-        ),
-        "command": "AT+UNDERPOWERLIM",
-        "setter": "set_under_power_limit_number",
-    },
-    CONF_DEFAULT_UNDER_POWER_LIMIT: {
-        "schema": _build_number_schema(
-            icon="mdi:flash-outline",
-            unit=UNIT_WATT,
-            default_min=0.0,
-            default_max=100000.0,
-            default_step=10.0,
-            default_multiplier=1.0,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        "command": "AT+DEFUNDERPOWERLIM",
-        "setter": "set_default_under_power_limit_number",
-    },
+    CONF_CHARGING_CURRENT: _make_number_type(
+        icon="mdi:current-ac",
+        unit=UNIT_AMPERE,
+        default_min=6.0,
+        default_max=63.0,
+        default_step=0.1,
+        default_multiplier=10.0,
+        command="AT+CHCUR",
+        setter="set_charging_current_number",
+    ),
+    CONF_DEFAULT_CHARGING_CURRENT: _make_number_type(
+        icon="mdi:current-ac",
+        unit=UNIT_AMPERE,
+        default_min=6.0,
+        default_max=63.0,
+        default_step=0.1,
+        default_multiplier=10.0,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        command="AT+DEFCHCUR",
+        setter="set_default_charging_current_number",
+    ),
+    CONF_MAXIMUM_CHARGING_CURRENT: _make_number_type(
+        icon="mdi:current-ac",
+        unit=UNIT_AMPERE,
+        default_min=6.0,
+        default_max=63.0,
+        default_step=0.1,
+        default_multiplier=10.0,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        command="AT+MAXCHCUR",
+        setter="set_maximum_charging_current_number",
+    ),
+    CONF_CONSUMPTION_LIMIT: _make_number_type(
+        icon="mdi:gauge",
+        unit=UNIT_WATT,
+        default_min=0.0,
+        default_max=100000.0,
+        default_step=10.0,
+        default_multiplier=1.0,
+        command="AT+CONSUMLIM",
+        setter="set_consumption_limit_number",
+    ),
+    CONF_DEFAULT_CONSUMPTION_LIMIT: _make_number_type(
+        icon="mdi:gauge",
+        unit=UNIT_WATT,
+        default_min=0.0,
+        default_max=100000.0,
+        default_step=10.0,
+        default_multiplier=1.0,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        command="AT+DEFCONSUMLIM",
+        setter="set_default_consumption_limit_number",
+    ),
+    CONF_CHARGING_TIME_LIMIT: _make_number_type(
+        icon="mdi:timer-outline",
+        unit=UNIT_SECOND,
+        default_min=0.0,
+        default_max=86400.0,
+        default_step=60.0,
+        default_multiplier=1.0,
+        command="AT+CHTIMELIM",
+        setter="set_charging_time_limit_number",
+    ),
+    CONF_DEFAULT_CHARGING_TIME_LIMIT: _make_number_type(
+        icon="mdi:timer-outline",
+        unit=UNIT_SECOND,
+        default_min=0.0,
+        default_max=86400.0,
+        default_step=60.0,
+        default_multiplier=1.0,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        command="AT+DEFCHTIMELIM",
+        setter="set_default_charging_time_limit_number",
+    ),
+    CONF_UNDER_POWER_LIMIT: _make_number_type(
+        icon="mdi:flash-outline",
+        unit=UNIT_WATT,
+        default_min=0.0,
+        default_max=100000.0,
+        default_step=10.0,
+        default_multiplier=1.0,
+        command="AT+UNDERPOWERLIM",
+        setter="set_under_power_limit_number",
+    ),
+    CONF_DEFAULT_UNDER_POWER_LIMIT: _make_number_type(
+        icon="mdi:flash-outline",
+        unit=UNIT_WATT,
+        default_min=0.0,
+        default_max=100000.0,
+        default_step=10.0,
+        default_multiplier=1.0,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        command="AT+DEFUNDERPOWERLIM",
+        setter="set_default_under_power_limit_number",
+    ),
 }
 
 
@@ -207,13 +201,18 @@ async def to_code(config):
         if key not in config:
             continue
         number_config = config[key]
+        defaults = meta["defaults"]
+        min_value = number_config.get(CONF_MIN_VALUE, defaults[CONF_MIN_VALUE])
+        max_value = number_config.get(CONF_MAX_VALUE, defaults[CONF_MAX_VALUE])
+        step = number_config.get(CONF_STEP, defaults[CONF_STEP])
         num = await number.new_number(
             number_config,
-            min_value=number_config[CONF_MIN_VALUE],
-            max_value=number_config[CONF_MAX_VALUE],
-            step=number_config[CONF_STEP],
+            min_value=min_value,
+            max_value=max_value,
+            step=step,
         )
         await cg.register_parented(num, config[CONF_ESP32EVSE_ID])
         cg.add(num.set_command(meta["command"]))
-        cg.add(num.set_multiplier(number_config[CONF_MULTIPLIER]))
+        multiplier = number_config.get(CONF_MULTIPLIER, defaults[CONF_MULTIPLIER])
+        cg.add(num.set_multiplier(multiplier))
         cg.add(getattr(parent, meta["setter"])(num))
