@@ -44,15 +44,6 @@ void ESP32EVSEComponent::setup() {
     this->request_emeter_session_time_update();
     this->request_emeter_charging_time_update();
 
-    // Subscribe to state and enable updates every second by default
-    this->send_command_("AT+SUB=\"+STATE\",1000");
-    this->send_command_("AT+SUB=\"+ENABLE\",1000");
-    if (this->emeter_power_sensor_ != nullptr) {
-      this->send_command_("AT+SUB=\"+EMETERPOWER\",1000");
-    }
-    if (this->charging_current_number_ != nullptr) {
-      this->send_command_("AT+SUB=\"+CHCUR\",1000");
-    }
   });
 
   if (this->temperature_sensor_ != nullptr) {
