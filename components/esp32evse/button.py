@@ -25,7 +25,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_AUTHORIZE): button.button_schema(
                 ESP32EVSEAuthorizeButton,
-                icon="mdi:check-decagram",
+                icon="mdi:battery-check-outline",
             ),
         }
     ),
