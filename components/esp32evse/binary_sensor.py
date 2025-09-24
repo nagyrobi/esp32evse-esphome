@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_CONNECTIVITY
+from esphome.const import DEVICE_CLASS_CONNECTIVITY, EntityCategory
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -30,6 +30,7 @@ CONFIG_SCHEMA = cv.All(
                 ESP32EVSEWifiConnectedBinarySensor,
                 device_class=DEVICE_CLASS_CONNECTIVITY,
                 icon="mdi:wifi-check",
+                entity_category=EntityCategory.DIAGNOSTIC,
             ),
         }
     ),

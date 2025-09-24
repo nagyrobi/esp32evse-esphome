@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
+from esphome.const import EntityCategory
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -36,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESET): button.button_schema(
                 ESP32EVSEResetButton,
                 icon="mdi:restart",
+                entity_category=EntityCategory.DIAGNOSTIC,
             ),
             cv.Optional(CONF_AUTHORIZE): button.button_schema(
                 ESP32EVSEAuthorizeButton,

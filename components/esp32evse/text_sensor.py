@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
+from esphome.const import EntityCategory
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent
 
@@ -23,15 +24,33 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
             cv.Optional(CONF_STATE): text_sensor.text_sensor_schema(icon="mdi:ev-station"),
-            cv.Optional(CONF_CHIP): text_sensor.text_sensor_schema(icon="mdi:chip"),
-            cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(icon="mdi:tag"),
-            cv.Optional(CONF_IDF_VERSION): text_sensor.text_sensor_schema(icon="mdi:alpha-i-circle"),
-            cv.Optional(CONF_BUILD_TIME): text_sensor.text_sensor_schema(icon="mdi:clock-outline"),
-            cv.Optional(CONF_DEVICE_TIME): text_sensor.text_sensor_schema(icon="mdi:clock"),
-            cv.Optional(CONF_WIFI_STA_SSID): text_sensor.text_sensor_schema(icon="mdi:wifi"),
-            cv.Optional(CONF_WIFI_STA_IP): text_sensor.text_sensor_schema(icon="mdi:ip"),
-            cv.Optional(CONF_WIFI_STA_MAC): text_sensor.text_sensor_schema(icon="mdi:lan"),
-            cv.Optional(CONF_DEVICE_NAME): text_sensor.text_sensor_schema(icon="mdi:rename-box"),
+            cv.Optional(CONF_CHIP): text_sensor.text_sensor_schema(
+                icon="mdi:chip", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
+                icon="mdi:tag", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_IDF_VERSION): text_sensor.text_sensor_schema(
+                icon="mdi:alpha-i-circle", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_BUILD_TIME): text_sensor.text_sensor_schema(
+                icon="mdi:clock-outline", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_DEVICE_TIME): text_sensor.text_sensor_schema(
+                icon="mdi:clock", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_WIFI_STA_SSID): text_sensor.text_sensor_schema(
+                icon="mdi:wifi", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_WIFI_STA_IP): text_sensor.text_sensor_schema(
+                icon="mdi:ip", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_WIFI_STA_MAC): text_sensor.text_sensor_schema(
+                icon="mdi:lan", entity_category=EntityCategory.DIAGNOSTIC
+            ),
+            cv.Optional(CONF_DEVICE_NAME): text_sensor.text_sensor_schema(
+                icon="mdi:rename-box", entity_category=EntityCategory.DIAGNOSTIC
+            ),
         }
     ),
     cv.has_at_least_one_key(
