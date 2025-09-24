@@ -16,8 +16,12 @@ from esphome.const import (
     UNIT_DECIBEL_MILLIWATT,
     UNIT_SECOND,
     UNIT_VOLT,
-    UNIT_WATT_HOUR,
 )
+
+try:
+    from esphome.const import UNIT_WATT_HOUR
+except ImportError:
+    from esphome.const import UNIT_WATT_HOURS as UNIT_WATT_HOUR
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent
 
