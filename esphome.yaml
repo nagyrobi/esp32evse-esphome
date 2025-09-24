@@ -81,8 +81,10 @@ number:
 sensor:
   - platform: esp32evse
     esp32evse_id: evse
-    temperature:
-      name: "EVSE Temperature"
+    temperature_high:
+      name: "EVSE Temperature High"
+    temperature_low:
+      name: "EVSE Temperature Low"
     emeter_power:
       name: "EVSE Power"
     emeter_session_time:

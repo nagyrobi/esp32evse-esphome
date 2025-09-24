@@ -68,7 +68,13 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     this->request_authorization_switch_ = sw;
   }
 
-  void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
+  void set_temperature_high_sensor(sensor::Sensor *sensor) {
+    this->temperature_high_sensor_ = sensor;
+  }
+  void set_temperature_low_sensor(sensor::Sensor *sensor) {
+    this->temperature_low_sensor_ = sensor;
+  }
+  void set_temperature_sensor(sensor::Sensor *sensor) { this->set_temperature_high_sensor(sensor); }
   void set_heap_sensor(sensor::Sensor *sensor) { this->heap_sensor_ = sensor; }
   void set_energy_consumption_sensor(sensor::Sensor *sensor) {
     this->energy_consumption_sensor_ = sensor;
@@ -243,7 +249,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSEAvailableSwitch *available_switch_{nullptr};
   ESP32EVSERequestAuthorizationSwitch *request_authorization_switch_{nullptr};
 
-  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *temperature_high_sensor_{nullptr};
+  sensor::Sensor *temperature_low_sensor_{nullptr};
   sensor::Sensor *heap_sensor_{nullptr};
   sensor::Sensor *energy_consumption_sensor_{nullptr};
   sensor::Sensor *total_energy_consumption_sensor_{nullptr};
