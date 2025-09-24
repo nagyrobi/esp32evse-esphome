@@ -1,1 +1,74 @@
+esphome:
+  name: esp32evse_dev
+  platform: ESP32
+  board: esp32dev
 
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: "YOUR_WIFI"
+  password: "YOUR_PASSWORD"
+  ap:
+    ssid: "esp32evse"
+    password: "changeme"
+
+captive_portal:
+
+api:
+
+ota:
+
+uart:
+  id: evse_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [esp32evse]
+
+esp32evse:
+  id: evse
+  uart_id: evse_uart
+
+text_sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    state:
+      name: "EVSE State"
+
+switch:
+  - platform: esp32evse
+    esp32evse_id: evse
+    enable:
+      name: "EVSE Charging Enable"
+
+sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    temperature:
+      name: "EVSE Temperature"
+    emeter_power:
+      name: "EVSE Power"
+    emeter_session_time:
+      name: "EVSE Session Time"
+    emeter_charging_time:
+      name: "EVSE Charging Time"
+
+number:
+  - platform: esp32evse
+    esp32evse_id: evse
+    charging_current:
+      name: "EVSE Charging Current"
+
+button:
+  - platform: esp32evse
+    esp32evse_id: evse
+    fast_power_subscribe:
+      name: "EVSE Fast Power Subscribe"
+    fast_power_unsubscribe:
+      name: "EVSE Fast Power Unsubscribe"
