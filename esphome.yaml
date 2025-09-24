@@ -1,0 +1,175 @@
+esphome:
+  name: esp32evse_dev
+
+esp32:
+  board: esp32dev
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: "YOUR_WIFI"
+  password: "YOUR_PASSWORD"
+  ap:
+    ssid: "esp32evse"
+    password: "changeme"
+
+captive_portal:
+
+api:
+
+ota:
+
+uart:
+  id: evse_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [esp32evse]
+
+esp32evse:
+  id: evse
+  uart_id: evse_uart
+
+binary_sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    pending_authorization:
+      name: "EVSE Pending Authorization"
+    wifi_connected:
+      name: "EVSE Wi-Fi Connected"
+
+button:
+  - platform: esp32evse
+    esp32evse_id: evse
+    fast_power_subscribe:
+      name: "EVSE Fast Power Subscribe"
+    fast_power_unsubscribe:
+      name: "EVSE Fast Power Unsubscribe"
+    reset:
+      name: "EVSE Reset"
+    authorize:
+      name: "EVSE Authorize"
+
+number:
+  - platform: esp32evse
+    esp32evse_id: evse
+    charging_current:
+      name: "EVSE Charging Current"
+      min_value: 6
+      max_value: 63
+      step: 0.1
+      multiplier: 10
+    default_charging_current:
+      name: "EVSE Default Charging Current"
+      min_value: 6
+      max_value: 63
+      step: 0.1
+      multiplier: 10
+    maximum_charging_current:
+      name: "EVSE Maximum Charging Current"
+      min_value: 6
+      max_value: 63
+      step: 0.1
+      multiplier: 10
+    consumption_limit:
+      name: "EVSE Consumption Limit"
+      min_value: 0
+      max_value: 100000
+      step: 10
+    default_consumption_limit:
+      name: "EVSE Default Consumption Limit"
+      min_value: 0
+      max_value: 100000
+      step: 10
+    charging_time_limit:
+      name: "EVSE Charging Time Limit"
+      min_value: 0
+      max_value: 86400
+      step: 60
+    default_charging_time_limit:
+      name: "EVSE Default Charging Time Limit"
+      min_value: 0
+      max_value: 86400
+      step: 60
+    under_power_limit:
+      name: "EVSE Under Power Limit"
+      min_value: 0
+      max_value: 100000
+      step: 10
+    default_under_power_limit:
+      name: "EVSE Default Under Power Limit"
+      min_value: 0
+      max_value: 100000
+      step: 10
+
+sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    temperature:
+      name: "EVSE Temperature"
+    emeter_power:
+      name: "EVSE Power"
+    emeter_session_time:
+      name: "EVSE Session Time"
+    emeter_charging_time:
+      name: "EVSE Charging Time"
+    heap:
+      name: "EVSE Free Heap"
+    energy_consumption:
+      name: "EVSE Session Energy"
+    total_energy_consumption:
+      name: "EVSE Total Energy"
+    voltage_l1:
+      name: "EVSE Voltage L1"
+    voltage_l2:
+      name: "EVSE Voltage L2"
+    voltage_l3:
+      name: "EVSE Voltage L3"
+    current_l1:
+      name: "EVSE Current L1"
+    current_l2:
+      name: "EVSE Current L2"
+    current_l3:
+      name: "EVSE Current L3"
+    wifi_rssi:
+      name: "EVSE Wi-Fi RSSI"
+
+switch:
+  - platform: esp32evse
+    esp32evse_id: evse
+    enable:
+      name: "EVSE Charging Enable"
+    available:
+      name: "EVSE Available"
+    request_authorization:
+      name: "EVSE Request Authorization"
+
+text_sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    state:
+      name: "EVSE State"
+    chip:
+      name: "EVSE MCU"
+    version:
+      name: "EVSE Firmware Version"
+    idf_version:
+      name: "EVSE IDF Version"
+    build_time:
+      name: "EVSE Build Time"
+    device_time:
+      name: "EVSE Device Time"
+    wifi_sta_ssid:
+      name: "EVSE Wi-Fi SSID"
+    wifi_sta_ip:
+      name: "EVSE Wi-Fi IP"
+    wifi_sta_mac:
+      name: "EVSE Wi-Fi MAC"
+    device_name:
+      name: "EVSE Device Name"
