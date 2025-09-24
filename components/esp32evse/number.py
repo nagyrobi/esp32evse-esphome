@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_STEP,
+    EntityCategory,
     UNIT_AMPERE,
     UNIT_SECOND,
     UNIT_WATT,
@@ -37,10 +38,20 @@ _NUMBER_SCHEMA_SUPPORTS_LIMITS = "min_value" in inspect.signature(  # pragma: no
 ).parameters
 
 
-def _build_number_schema(icon, unit, default_min, default_max, default_step, default_multiplier):
+def _build_number_schema(
+    icon,
+    unit,
+    default_min,
+    default_max,
+    default_step,
+    default_multiplier,
+    entity_category=None,
+):
     kwargs = {"icon": icon}
     if unit is not None:
         kwargs["unit_of_measurement"] = unit
+    if entity_category is not None:
+        kwargs["entity_category"] = entity_category
     if _NUMBER_SCHEMA_SUPPORTS_LIMITS:
         kwargs.update(
             {
@@ -81,6 +92,7 @@ _NUMBER_TYPES = {
             default_max=63.0,
             default_step=0.1,
             default_multiplier=10.0,
+            entity_category=EntityCategory.CONFIG,
         ),
         "command": "AT+DEFCHCUR",
         "setter": "set_default_charging_current_number",
@@ -93,6 +105,7 @@ _NUMBER_TYPES = {
             default_max=63.0,
             default_step=0.1,
             default_multiplier=10.0,
+            entity_category=EntityCategory.CONFIG,
         ),
         "command": "AT+MAXCHCUR",
         "setter": "set_maximum_charging_current_number",
@@ -117,6 +130,7 @@ _NUMBER_TYPES = {
             default_max=100000.0,
             default_step=10.0,
             default_multiplier=1.0,
+            entity_category=EntityCategory.CONFIG,
         ),
         "command": "AT+DEFCONSUMLIM",
         "setter": "set_default_consumption_limit_number",
@@ -141,6 +155,7 @@ _NUMBER_TYPES = {
             default_max=86400.0,
             default_step=60.0,
             default_multiplier=1.0,
+            entity_category=EntityCategory.CONFIG,
         ),
         "command": "AT+DEFCHTIMELIM",
         "setter": "set_default_charging_time_limit_number",
@@ -165,6 +180,7 @@ _NUMBER_TYPES = {
             default_max=100000.0,
             default_step=10.0,
             default_multiplier=1.0,
+            entity_category=EntityCategory.CONFIG,
         ),
         "command": "AT+DEFUNDERPOWERLIM",
         "setter": "set_default_under_power_limit_number",
