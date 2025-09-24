@@ -98,8 +98,10 @@ class ESP32EVSEEnableSwitch : public switch_::Switch, public Parented<ESP32EVSEC
 };
 
 class ESP32EVSEChargingCurrentNumber : public number::Number, public Parented<ESP32EVSEComponent> {
+ public:
+  ESP32EVSEChargingCurrentNumber();
+
  protected:
-  number::NumberTraits traits() override;
   void control(float value) override;
 };
 
