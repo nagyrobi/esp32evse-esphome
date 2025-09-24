@@ -58,17 +58,15 @@ void ESP32EVSEComponent::loop() {
     uint8_t byte;
     this->read_byte(&byte);
     char c = static_cast<char>(byte);
-    if (c == '\r')
-      continue;
-    if (c == '\n') {
+    if (c == '\n' || c == '\r') {
       if (!this->read_buffer_.empty()) {
         this->process_line_(this->read_buffer_);
         this->read_buffer_.clear();
       }
     } else {
       this->read_buffer_.push_back(c);
-      if (this->read_buffer_.size() > 256) {
-        ESP_LOGW(TAG, "Line too long, resetting buffer");
+      if (this->read_buffer_.size() > 512) {
+        ESP_LOGW(TAG, "Line too long (%zu), discarding partial data", this->read_buffer_.size());
         this->read_buffer_.clear();
       }
     }
