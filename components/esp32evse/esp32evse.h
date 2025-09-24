@@ -183,11 +183,13 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   struct PendingCommand {
     std::string command;
     std::function<void(bool)> callback;
-    uint32_t start_time;
+    uint32_t start_time{0};
+    bool sent{false};
   };
 
   void process_line_(const std::string &line);
   void handle_ack_(bool success);
+  void process_next_command_();
   void update_state_(uint8_t state);
   void update_enable_(bool enable);
   void update_temperature_(int count, int32_t high, int32_t low);
