@@ -965,18 +965,6 @@ void ESP32EVSEChargingCurrentNumber::control(float value) {
   this->parent_->write_number_value(this, value);
 }
 
-void ESP32EVSEFastSubscribeButton::press_action() {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->subscribe_fast_power_updates();
-}
-
-void ESP32EVSEFastUnsubscribeButton::press_action() {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->unsubscribe_fast_power_updates();
-}
-
 void ESP32EVSEResetButton::press_action() {
   if (this->parent_ == nullptr)
     return;
