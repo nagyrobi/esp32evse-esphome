@@ -7,7 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
-    EntityCategory,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_FLASH,
     ICON_THERMOMETER,
     ICON_TIMER,
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
                 accuracy_decimals=2,
-                entity_category=EntityCategory.DIAGNOSTIC,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_EMETER_POWER): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_POWER,
@@ -76,7 +76,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement="B",
                 icon="mdi:memory",
                 state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=EntityCategory.DIAGNOSTIC,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ENERGY_CONSUMPTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT_HOUR,
@@ -87,7 +87,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_WATT_HOUR,
                 icon="mdi:counter",
                 state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=EntityCategory.DIAGNOSTIC,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_VOLTAGE_L1): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
@@ -130,7 +130,7 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:wifi-strength-2",
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                 state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=EntityCategory.DIAGNOSTIC,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     ),

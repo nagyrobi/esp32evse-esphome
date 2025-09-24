@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import EntityCategory
+from esphome.const import ENTITY_CATEGORY_CONFIG
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -29,12 +29,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AVAILABLE): switch.switch_schema(
                 ESP32EVSEAvailableSwitch,
                 icon="mdi:check-network",
-                entity_category=EntityCategory.CONFIG,
+                entity_category=ENTITY_CATEGORY_CONFIG,
             ),
             cv.Optional(CONF_REQUEST_AUTHORIZATION): switch.switch_schema(
                 ESP32EVSERequestAuthorizationSwitch,
                 icon="mdi:hand-back-right",
-                entity_category=EntityCategory.CONFIG,
+                entity_category=ENTITY_CATEGORY_CONFIG,
             ),
         }
     ),
