@@ -11,6 +11,7 @@
 #include <ctime>
 #include <inttypes.h>
 #include <limits>
+#include <utility>
 
 namespace esphome {
 namespace esp32evse {
@@ -146,13 +147,19 @@ void ESP32EVSEComponent::loop() {
   const uint32_t now = millis();
   while (!this->pending_commands_.empty()) {
     auto &front = this->pending_commands_.front();
+    if (!front.sent) {
+      this->process_next_command_();
+      break;
+    }
     if (now - front.start_time < 5000) {
       break;
     }
     ESP_LOGW(TAG, "Command '%s' timed out", front.command.c_str());
-    if (front.callback)
-      front.callback(false);
+    auto pending = std::move(this->pending_commands_.front());
     this->pending_commands_.pop_front();
+    if (pending.callback)
+      pending.callback(false);
+    this->process_next_command_();
   }
 }
 
@@ -349,11 +356,12 @@ void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
 void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }
 
 bool ESP32EVSEComponent::send_command_(const std::string &command, std::function<void(bool)> callback) {
-  ESP_LOGV(TAG, "Sending command: %s", command.c_str());
-  this->write_str(command.c_str());
-  this->write_str("\r\n");
-  PendingCommand pending{command, std::move(callback), millis()};
+  ESP_LOGV(TAG, "Queueing command: %s", command.c_str());
+  PendingCommand pending;
+  pending.command = command;
+  pending.callback = std::move(callback);
   this->pending_commands_.push_back(std::move(pending));
+  this->process_next_command_();
   return true;
 }
 
@@ -557,11 +565,27 @@ void ESP32EVSEComponent::handle_ack_(bool success) {
     ESP_LOGW(TAG, "Received %s without pending command", success ? "OK" : "ERROR");
     return;
   }
-  auto pending = this->pending_commands_.front();
+  auto pending = std::move(this->pending_commands_.front());
   this->pending_commands_.pop_front();
   ESP_LOGV(TAG, "Command '%s' completed with %s", pending.command.c_str(), success ? "OK" : "ERROR");
   if (pending.callback)
     pending.callback(success);
+  this->process_next_command_();
+}
+
+void ESP32EVSEComponent::process_next_command_() {
+  if (this->pending_commands_.empty())
+    return;
+
+  auto &front = this->pending_commands_.front();
+  if (front.sent)
+    return;
+
+  ESP_LOGV(TAG, "Sending command: %s", front.command.c_str());
+  this->write_str(front.command.c_str());
+  this->write_str("\r\n");
+  front.start_time = millis();
+  front.sent = true;
 }
 
 void ESP32EVSEComponent::update_state_(uint8_t state) {
