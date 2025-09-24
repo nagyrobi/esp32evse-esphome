@@ -52,6 +52,7 @@ def _build_number_schema(
         kwargs["unit_of_measurement"] = unit
     if entity_category is not None:
         kwargs["entity_category"] = entity_category
+    kwargs["mode"] = number.NumberMode.NUMBER_MODE_BOX
     if _NUMBER_SCHEMA_SUPPORTS_LIMITS:
         kwargs.update(
             {
