@@ -16,6 +16,7 @@
 
 #include <deque>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 
@@ -127,6 +128,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void set_default_under_power_limit_number(ESP32EVSEChargingCurrentNumber *number) {
     this->default_under_power_limit_number_ = number;
   }
+
+  float clamp_charging_current_value(ESP32EVSEChargingCurrentNumber *number, float value) const;
 
   void set_emeter_power_sensor(sensor::Sensor *sensor) { this->emeter_power_sensor_ = sensor; }
   void set_emeter_session_time_sensor(sensor::Sensor *sensor) {
@@ -288,6 +291,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSEChargingCurrentNumber *charging_current_number_{nullptr};
   ESP32EVSEChargingCurrentNumber *default_charging_current_number_{nullptr};
   ESP32EVSEChargingCurrentNumber *maximum_charging_current_number_{nullptr};
+  float maximum_charging_current_limit_{std::numeric_limits<float>::quiet_NaN()};
   ESP32EVSEChargingCurrentNumber *consumption_limit_number_{nullptr};
   ESP32EVSEChargingCurrentNumber *default_consumption_limit_number_{nullptr};
   ESP32EVSEChargingCurrentNumber *charging_time_limit_number_{nullptr};
