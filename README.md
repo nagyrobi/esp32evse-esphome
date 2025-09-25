@@ -29,6 +29,14 @@ If you use the [esp32s2-evse-d-a board](https://github.com/dzurikmiroslav/esp32-
 | 3: RX |
 | 4: +5V |
 
+Configure the UART as per ESPHome docs, and instantiate the EVSE component and link it to the configured UART bus.
+
+```yaml
+esp32evse:
+  id: evse
+  uart_id: evse_uart
+```
+
 ## Entities exposed
 
 The example configuration enables every entity type currently supported by the
