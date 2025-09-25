@@ -69,10 +69,10 @@ binary_sensor:
 button:
   - platform: esp32evse
     esp32evse_id: evse
-    reset:
-      name: "EVSE Reset"
     authorize:
       name: "EVSE Authorize"
+    reset:
+      name: "EVSE Restart"
 
 # Numeric entities expose adjustable parameters like charging current limits to
 # automation rules.
@@ -113,14 +113,10 @@ sensor:
     #   name: "EVSE Temperature"
     emeter_power:
       name: "EVSE Power"
-    emeter_session_time:
-      name: "EVSE Session Time"
     emeter_charging_time:
       name: "EVSE Charging Time"
-    heap_used:
-      name: "EVSE Heap Used"
-    heap_total:
-      name: "EVSE Heap Total"
+    emeter_session_time:
+      name: "EVSE Session Time"
     energy_consumption:
       name: "EVSE Session Energy"
     total_energy_consumption:
@@ -139,6 +135,10 @@ sensor:
       name: "EVSE Current L3"
     wifi_rssi:
       name: "EVSE Wi-Fi RSSI"
+    heap_used:
+      name: "EVSE Heap Used"
+    heap_total:
+      name: "EVSE Heap Total"
 
 # Switches toggle on/off features like session enablement or manual
 # availability.
@@ -147,10 +147,10 @@ switch:
     esp32evse_id: evse
     enable:
       name: "EVSE Charging Enable"
-    available:
-      name: "EVSE Available"
     request_authorization:
       name: "EVSE Request Authorization"
+    available:
+      name: "EVSE Available"
 
 # Text sensors carry metadata strings such as firmware details and network
 # identifiers that are useful for diagnostics.
@@ -158,15 +158,9 @@ text_sensor:
   - platform: esp32evse
     esp32evse_id: evse
     state:
-      name: "EVSE State"
-    chip:
-      name: "EVSE MCU"
-    version:
-      name: "EVSE Firmware Version"
-    idf_version:
-      name: "EVSE IDF Version"
-    build_time:
-      name: "EVSE Build Time"
+      name: "EVSE State (J1772)"
+    device_name:
+      name: "EVSE Device Name"
     device_time:
       name: "EVSE Device Time"
     wifi_sta_ssid:
@@ -175,5 +169,11 @@ text_sensor:
       name: "EVSE Wi-Fi IP"
     wifi_sta_mac:
       name: "EVSE Wi-Fi MAC"
-    device_name:
-      name: "EVSE Device Name"
+    chip:
+      name: "EVSE MCU"
+    build_time:
+      name: "EVSE Build Time"
+    version:
+      name: "EVSE Firmware Version"
+    idf_version:
+      name: "EVSE IDF Version"
