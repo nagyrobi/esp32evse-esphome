@@ -14,7 +14,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
 
-from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns, register_autoupdate_target
+from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
 DEPENDENCIES = ["esp32evse"]
 
@@ -69,11 +69,9 @@ async def to_code(config):
         sens = await binary_sensor.new_binary_sensor(pending_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_pending_authorization_binary_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+PENDAUTH?")
     if wifi_config := config.get(CONF_WIFI_CONNECTED):
         # Track Wi-Fi connectivity so operators can detect when the charger
         # falls offline without looking at the controller's web UI.
         sens = await binary_sensor.new_binary_sensor(wifi_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_wifi_connected_binary_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+WIFISTACONN?")

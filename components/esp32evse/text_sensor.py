@@ -7,7 +7,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 
-from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, register_autoupdate_target
+from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent
 
 DEPENDENCIES = ["esp32evse"]
 
@@ -82,40 +82,30 @@ async def to_code(config):
     if state_config := config.get(CONF_STATE):
         sens = await text_sensor.new_text_sensor(state_config)
         cg.add(parent.set_state_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+STATE?")
     if chip_config := config.get(CONF_CHIP):
         sens = await text_sensor.new_text_sensor(chip_config)
         cg.add(parent.set_chip_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+CHIP?")
     if version_config := config.get(CONF_VERSION):
         sens = await text_sensor.new_text_sensor(version_config)
         cg.add(parent.set_version_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+VER?")
     if idf_version_config := config.get(CONF_IDF_VERSION):
         sens = await text_sensor.new_text_sensor(idf_version_config)
         cg.add(parent.set_idf_version_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+IDFVER?")
     if build_time_config := config.get(CONF_BUILD_TIME):
         sens = await text_sensor.new_text_sensor(build_time_config)
         cg.add(parent.set_build_time_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+BUILDTIME?")
     if device_time_config := config.get(CONF_DEVICE_TIME):
         sens = await text_sensor.new_text_sensor(device_time_config)
         cg.add(parent.set_device_time_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+TIME?")
     if wifi_ssid_config := config.get(CONF_WIFI_STA_SSID):
         sens = await text_sensor.new_text_sensor(wifi_ssid_config)
         cg.add(parent.set_wifi_sta_ssid_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+WIFISTACFG?")
     if wifi_ip_config := config.get(CONF_WIFI_STA_IP):
         sens = await text_sensor.new_text_sensor(wifi_ip_config)
         cg.add(parent.set_wifi_sta_ip_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+WIFISTAIP?")
     if wifi_mac_config := config.get(CONF_WIFI_STA_MAC):
         sens = await text_sensor.new_text_sensor(wifi_mac_config)
         cg.add(parent.set_wifi_sta_mac_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+WIFISTAMAC?")
     if device_name_config := config.get(CONF_DEVICE_NAME):
         sens = await text_sensor.new_text_sensor(device_name_config)
         cg.add(parent.set_device_name_text_sensor(sens))
-        register_autoupdate_target(parent, sens, "AT+DEVNAME?")
