@@ -13,7 +13,7 @@ from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 DEPENDENCIES = ["esp32evse"]
 
 # Define the lightweight C++ wrappers representing the actions we can trigger
-# on the EVSE controller from Home Assistant.
+# on the EVSE controller from client applications.
 ESP32EVSEResetButton = esp32evse_ns.class_("ESP32EVSEResetButton", button.Button)
 ESP32EVSEAuthorizeButton = esp32evse_ns.class_("ESP32EVSEAuthorizeButton", button.Button)
 

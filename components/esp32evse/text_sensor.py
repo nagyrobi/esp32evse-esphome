@@ -1,7 +1,7 @@
 """Expose EVSE metadata strings (like firmware version) as text sensors."""
 
-# Text sensors surface raw strings to Home Assistant.  The helpers below create
-# them from user configuration and link them back to the EVSE component.
+# Text sensors surface raw strings to dashboards.  The helpers below create them
+# from user configuration and link them back to the EVSE component.
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv

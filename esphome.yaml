@@ -1,5 +1,5 @@
-# Core firmware metadata so the node shows up with a friendly name inside ESPHome
-# Dashboard and Home Assistant.
+# Core firmware metadata so the node shows up with a friendly name inside the ESPHome
+# Dashboard and other management tools.
 esphome:
   name: esp32evse_dev
 
@@ -26,7 +26,7 @@ wifi:
 # point mode.
 captive_portal:
 
-# Home Assistant native API support for remote control and monitoring.
+# Native API support for remote control and monitoring.
 api:
 
 # Enable over-the-air firmware updates to avoid physical serial connections once
@@ -75,7 +75,7 @@ button:
       name: "EVSE Authorize"
 
 # Numeric entities expose adjustable parameters like charging current limits to
-# Home Assistant automations.
+# automation rules.
 number:
   - platform: esp32evse
     esp32evse_id: evse
@@ -107,6 +107,10 @@ sensor:
       name: "EVSE Temperature High"
     temperature_low:
       name: "EVSE Temperature Low"
+    # If your installation only uses a single probe, expose it via the combined
+    # ``temperature`` key instead of the individual high/low entries:
+    # temperature:
+    #   name: "EVSE Temperature"
     emeter_power:
       name: "EVSE Power"
     emeter_session_time:

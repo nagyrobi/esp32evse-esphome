@@ -1,7 +1,7 @@
 """Configuration helpers for the ESP32 EVSE binary sensors.
 
 Each section below explains what kind of binary sensor is exposed to ESPHome
-and why we forward the data from the EVSE controller to Home Assistant.
+and why we forward the data from the EVSE controller to user-facing dashboards.
 """
 
 # Import the code generation helpers used to hook the sensors into the C++

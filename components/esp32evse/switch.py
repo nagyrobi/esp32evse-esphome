@@ -12,7 +12,7 @@ from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 DEPENDENCIES = ["esp32evse"]
 
 # Define the C++ wrappers for each control surface we expose.  They allow the
-# component implementation to push state updates back to Home Assistant.
+# component implementation to push state updates back to connected clients.
 ESP32EVSEEnableSwitch = esp32evse_ns.class_("ESP32EVSEEnableSwitch", switch.Switch)
 ESP32EVSEAvailableSwitch = esp32evse_ns.class_("ESP32EVSEAvailableSwitch", switch.Switch)
 ESP32EVSERequestAuthorizationSwitch = esp32evse_ns.class_(

@@ -41,7 +41,6 @@ CONF_TEMPERATURE_LOW = "temperature_low"
 CONF_EMETER_POWER = "emeter_power"
 CONF_EMETER_SESSION_TIME = "emeter_session_time"
 CONF_EMETER_CHARGING_TIME = "emeter_charging_time"
-CONF_HEAP = "heap"
 CONF_HEAP_USED = "heap_used"
 CONF_HEAP_TOTAL = "heap_total"
 CONF_ENERGY_CONSUMPTION = "energy_consumption"
@@ -100,12 +99,6 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_SECOND,
                 icon=ICON_TIMER,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_HEAP): sensor.sensor_schema(
-                unit_of_measurement="B",
-                icon="mdi:memory",
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_HEAP_USED): sensor.sensor_schema(
                 unit_of_measurement="B",
@@ -190,7 +183,6 @@ CONFIG_SCHEMA = cv.All(
         CONF_EMETER_POWER,
         CONF_EMETER_SESSION_TIME,
         CONF_EMETER_CHARGING_TIME,
-        CONF_HEAP,
         CONF_HEAP_USED,
         CONF_HEAP_TOTAL,
         CONF_ENERGY_CONSUMPTION,
@@ -235,10 +227,6 @@ async def to_code(config):
         cg.add(parent.set_emeter_charging_time_sensor(sens))
     if heap_used_config := config.get(CONF_HEAP_USED):
         sens = await sensor.new_sensor(heap_used_config)
-        cg.add(parent.set_heap_used_sensor(sens))
-    elif heap_config := config.get(CONF_HEAP):
-        # Older configurations may reference ``heap`` instead of ``heap_used``.
-        sens = await sensor.new_sensor(heap_config)
         cg.add(parent.set_heap_used_sensor(sens))
     if heap_total_config := config.get(CONF_HEAP_TOTAL):
         sens = await sensor.new_sensor(heap_total_config)
