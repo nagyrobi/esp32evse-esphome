@@ -192,20 +192,25 @@ text_sensor:
 The component exposes helper methods so you can trigger `AT+SUB` / `AT+UNSUB`
 commands directly from ESPHome lambdas. This allows custom subscriptions beyond
 ESPHome's built-in update period. Check out the [AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
-for details
+for details.
+
+In the example below, we enable autoupdate of the ``emeter_power`` entity every 1000ms, pushed from the EVSE:
 
 ```yaml
     on_press:
       - lambda: |-
           id(evse).at_sub("\"+EMETERPOWER\"", 1000);
+```
 
+Here we disable it:
+
+```yaml
     on_press:
       - lambda: |-
           id(evse).at_unsub("\"+EMETERPOWER\"");
 ```
 
-Passing an empty string to `at_unsub()` sends `AT+UNSUB=""`,
-which clears every active subscription:
+Passing an empty string to `at_unsub()` sends `AT+UNSUB=""` which clears all active subscriptions for all entities:
 
 ```yaml
     on_press:
