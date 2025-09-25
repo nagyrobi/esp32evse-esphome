@@ -1,3 +1,6 @@
+// Implementation of the ESP32 EVSE ESPHome component.  This file contains the
+// UART protocol glue that synchronises charger state with the generated
+// entities configured in YAML.
 #include "esp32evse.h"
 
 #include "esphome/core/helpers.h"
@@ -22,6 +25,9 @@ static const char *const TAG = "esp32evse";
 
 namespace {
 
+// Utility: return a pointer to the substring that follows ``prefix`` if the
+// incoming UART line starts with it.  Many EVSE responses follow a predictable
+// ``KEY=VALUE`` structure, so this helper keeps the parsing code terse.
 const char *value_after_prefix(const std::string &line, const char *prefix) {
   const size_t prefix_len = strlen(prefix);
   if (line.compare(0, prefix_len, prefix) != 0)
@@ -34,6 +40,8 @@ const char *value_after_prefix(const std::string &line, const char *prefix) {
   return line.c_str() + pos;
 }
 
+// Utility: trim whitespace and optional quotes from a string returned by the
+// EVSE so we can forward clean values to Home Assistant.
 std::string trim_copy(const char *value) {
   if (value == nullptr)
     return {};
@@ -52,6 +60,8 @@ std::string trim_copy(const char *value) {
   return out;
 }
 
+// Utility: split a delimited string into trimmed tokens.  Used for parsing
+// multi-value responses such as comma separated sensor tuples.
 std::vector<std::string> split_and_trim(const std::string &input, char delimiter = ',') {
   std::vector<std::string> parts;
   size_t start = 0;
@@ -70,6 +80,7 @@ std::vector<std::string> split_and_trim(const std::string &input, char delimiter
   return parts;
 }
 
+// Utility: parse the last floating point number contained in a response.
 float parse_last_float(const std::string &input) {
   float result = NAN;
   const char *start = input.c_str();
@@ -88,6 +99,7 @@ float parse_last_float(const std::string &input) {
 
 }  // namespace
 
+// Called once at boot to schedule initial state requests from the EVSE.
 void ESP32EVSEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 EVSE component");
 
@@ -161,6 +173,8 @@ void ESP32EVSEComponent::setup() {
   });
 }
 
+// Process incoming UART bytes and drive the command queue.  This keeps the ESPHome
+// scheduler responsive even while waiting for EVSE acknowledgements.
 void ESP32EVSEComponent::loop() {
   while (this->available()) {
     uint8_t byte;
@@ -199,6 +213,7 @@ void ESP32EVSEComponent::loop() {
   }
 }
 
+// Periodic refresh triggered by ``PollingComponent`` every 60 seconds.
 void ESP32EVSEComponent::update() {
   this->request_state_update();
   this->request_enable_update();
@@ -250,6 +265,7 @@ void ESP32EVSEComponent::update() {
     this->request_default_under_power_limit_update();
 }
 
+// Emit human readable configuration details in the ESPHome logs.
 void ESP32EVSEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 EVSE:");
   auto *uart_parent = this->parent_;
@@ -267,6 +283,8 @@ void ESP32EVSEComponent::dump_config() {
   }
 }
 
+// Thin wrappers that enqueue the corresponding AT command.  Keeping them in one
+// place makes it easy to audit which controller features we query.
 void ESP32EVSEComponent::request_state_update() { this->send_command_("AT+STATE?"); }
 void ESP32EVSEComponent::request_enable_update() { this->send_command_("AT+ENABLE?"); }
 void ESP32EVSEComponent::request_temperature_update() { this->send_command_("AT+TEMP?"); }
@@ -329,6 +347,7 @@ void ESP32EVSEComponent::request_pending_authorization_update() {
   this->send_command_("AT+PENDAUTH?");
 }
 
+// Translate ESPHome entity state changes into AT commands.
 void ESP32EVSEComponent::write_enable_state(bool enabled) {
   std::string command = "AT+ENABLE=";
   command += enabled ? '1' : '0';
@@ -379,6 +398,8 @@ void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *numb
   });
 }
 
+// Convenience wrappers for popular subscription targets.  They are exposed to
+// users through templated buttons in YAML.
 void ESP32EVSEComponent::subscribe_fast_power_updates() {
   this->send_command_("AT+SUB=\"+EMETERPOWER\",500");
 }
@@ -418,6 +439,8 @@ void ESP32EVSEComponent::at_unsub(const std::string &command) {
   this->send_command_(cmd);
 }
 
+// Validate that a subscription string only contains characters supported by the
+// EVSE firmware (alphanumeric, plus, underscore, and quotes).
 bool ESP32EVSEComponent::is_valid_subscription_argument_(const std::string &argument) const {
   if (argument.empty()) {
     return false;
@@ -447,6 +470,9 @@ bool ESP32EVSEComponent::send_command_(const std::string &command, std::function
   return true;
 }
 
+// Parse a single line returned by the EVSE and dispatch to the appropriate
+// update handler.  The protocol is a mix of ``+KEY=VALUE`` lines and asynchronous
+// ``OK``/``ERROR`` acknowledgements.
 void ESP32EVSEComponent::process_line_(const std::string &line) {
   ESP_LOGV(TAG, "Received line: %s", line.c_str());
   if (line == "OK") {
@@ -693,6 +719,8 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   ESP_LOGD(TAG, "Unhandled line: %s", line.c_str());
 }
 
+// Called after receiving an ``OK`` or ``ERROR`` response for the oldest pending
+// command.
 void ESP32EVSEComponent::handle_ack_(bool success) {
   if (this->pending_commands_.empty()) {
     ESP_LOGW(TAG, "Received %s without pending command", success ? "OK" : "ERROR");
@@ -706,6 +734,7 @@ void ESP32EVSEComponent::handle_ack_(bool success) {
   this->process_next_command_();
 }
 
+// Send the next queued command if we are not already waiting for a reply.
 void ESP32EVSEComponent::process_next_command_() {
   if (this->pending_commands_.empty())
     return;
@@ -721,6 +750,7 @@ void ESP32EVSEComponent::process_next_command_() {
   front.sent = true;
 }
 
+// Publish EVSE state machine codes (A/B/C/etc.) to the bound text sensor.
 void ESP32EVSEComponent::update_state_(uint8_t state) {
   static const char *const STATE_NAMES[] = {"A", "B1", "B2", "C1", "C2", "D1", "D2", "E", "F"};
   const char *state_name = "UNKNOWN";
@@ -730,12 +760,15 @@ void ESP32EVSEComponent::update_state_(uint8_t state) {
   this->publish_text_sensor_state_(this->state_text_sensor_, state_name);
 }
 
+// Mirror EVSE flags back into ESPHome entities.
 void ESP32EVSEComponent::update_enable_(bool enable) {
   if (this->enable_switch_ != nullptr) {
     this->enable_switch_->publish_state(enable);
   }
 }
 
+// Publish the EVSE's reported temperature extremes.  Values are sent in
+// centi-degrees, so we convert to Celsius before forwarding them.
 void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t low) {
   if (this->temperature_high_sensor_ == nullptr && this->temperature_low_sensor_ == nullptr)
     return;
@@ -755,6 +788,8 @@ void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t lo
     this->temperature_low_sensor_->publish_state(low_c);
 }
 
+// Helper: convert the raw integer value reported by the EVSE into the scaled
+// float Home Assistant expects, then publish it on the number entity.
 void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value) {
   if (number == nullptr)
     return;
@@ -765,6 +800,8 @@ void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *
   number->publish_state(value);
 }
 
+// Helper: only publish text sensor updates when the value actually changes to
+// avoid unnecessary state spam in Home Assistant.
 void ESP32EVSEComponent::publish_text_sensor_state_(text_sensor::TextSensor *sensor,
                                                     const std::string &state) {
   if (sensor == nullptr)
@@ -929,6 +966,9 @@ void ESP32EVSEComponent::update_wifi_status_(bool connected, int rssi) {
   }
 }
 
+// Forward various numeric reports from the EVSE to their corresponding number
+// entities.  Values are scaled so ESPHome users interact with human readable
+// units instead of protocol specific integers.
 void ESP32EVSEComponent::update_default_charging_current_(uint16_t value_tenths) {
   this->publish_scaled_number_(this->default_charging_current_number_, value_tenths);
 }
@@ -967,6 +1007,8 @@ void ESP32EVSEComponent::update_pending_authorization_(bool pending) {
   }
 }
 
+// When a write command fails we re-request the value so the UI reflects the
+// actual charger state.
 void ESP32EVSEComponent::request_number_update_(ESP32EVSEChargingCurrentNumber *number) {
   if (number == nullptr)
     return;
@@ -998,6 +1040,8 @@ void ESP32EVSEEnableSwitch::write_state(bool state) {
   this->parent_->write_enable_state(state);
 }
 
+// Switch implementations optimistically publish their new state and rely on the
+// component callbacks to revert if the EVSE rejects the request.
 void ESP32EVSEAvailableSwitch::write_state(bool state) {
   if (this->parent_ == nullptr)
     return;
@@ -1025,6 +1069,7 @@ void ESP32EVSEChargingCurrentNumber::control(float value) {
   this->parent_->write_number_value(this, value);
 }
 
+// Buttons translate presses into EVSE commands with no additional state.
 void ESP32EVSEResetButton::press_action() {
   if (this->parent_ == nullptr)
     return;
