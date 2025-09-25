@@ -37,7 +37,7 @@ or commenting out the related sections in `esphome.yaml`.
 
 - **Temperatures**
 - **Power**, **session duration**, and **charging duration**
-- **Free heap memory**
+- **Heap memory usage** (used and total)
 - **Session time** and **total energy consumption**
 - **Line voltages** (L1/L2/L3)
 - **Line currents** (L1/L2/L3)

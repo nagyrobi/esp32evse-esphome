@@ -38,6 +38,8 @@ CONF_EMETER_POWER = "emeter_power"
 CONF_EMETER_SESSION_TIME = "emeter_session_time"
 CONF_EMETER_CHARGING_TIME = "emeter_charging_time"
 CONF_HEAP = "heap"
+CONF_HEAP_USED = "heap_used"
+CONF_HEAP_TOTAL = "heap_total"
 CONF_ENERGY_CONSUMPTION = "energy_consumption"
 CONF_TOTAL_ENERGY_CONSUMPTION = "total_energy_consumption"
 CONF_VOLTAGE_L1 = "voltage_l1"
@@ -94,6 +96,18 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HEAP): sensor.sensor_schema(
+                unit_of_measurement="B",
+                icon="mdi:memory",
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_HEAP_USED): sensor.sensor_schema(
+                unit_of_measurement="B",
+                icon="mdi:memory",
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_HEAP_TOTAL): sensor.sensor_schema(
                 unit_of_measurement="B",
                 icon="mdi:memory",
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -171,6 +185,8 @@ CONFIG_SCHEMA = cv.All(
         CONF_EMETER_SESSION_TIME,
         CONF_EMETER_CHARGING_TIME,
         CONF_HEAP,
+        CONF_HEAP_USED,
+        CONF_HEAP_TOTAL,
         CONF_ENERGY_CONSUMPTION,
         CONF_TOTAL_ENERGY_CONSUMPTION,
         CONF_VOLTAGE_L1,
@@ -205,9 +221,15 @@ async def to_code(config):
     if charging_config := config.get(CONF_EMETER_CHARGING_TIME):
         sens = await sensor.new_sensor(charging_config)
         cg.add(parent.set_emeter_charging_time_sensor(sens))
-    if heap_config := config.get(CONF_HEAP):
+    if heap_used_config := config.get(CONF_HEAP_USED):
+        sens = await sensor.new_sensor(heap_used_config)
+        cg.add(parent.set_heap_used_sensor(sens))
+    elif heap_config := config.get(CONF_HEAP):
         sens = await sensor.new_sensor(heap_config)
-        cg.add(parent.set_heap_sensor(sens))
+        cg.add(parent.set_heap_used_sensor(sens))
+    if heap_total_config := config.get(CONF_HEAP_TOTAL):
+        sens = await sensor.new_sensor(heap_total_config)
+        cg.add(parent.set_heap_total_sensor(sens))
     if energy_config := config.get(CONF_ENERGY_CONSUMPTION):
         sens = await sensor.new_sensor(energy_config)
         cg.add(parent.set_energy_consumption_sensor(sens))
