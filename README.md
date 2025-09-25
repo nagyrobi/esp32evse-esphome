@@ -3,6 +3,8 @@
 This repository provides an [ESPHome](https://esphome.io/) configuration and custom
 component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller.
 
+It implements the communication with ESP32-EVSE using [AT Commands](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands).
+
 ## Repository layout
 
 - `components/esp32evse/` – Custom ESPHome component implementation.
@@ -72,6 +74,12 @@ sensor:
     heap_total:
       name: "EVSE Heap Total"
 ```
+If your installation only uses a single probe, expose it via the combined ``temperature`` key instead of the individual high/low entries:
+
+```yaml
+    temperature:
+      name: "EVSE Temperature"
+```
 
 ### Switches
 
@@ -81,10 +89,10 @@ switch:
     esp32evse_id: evse
     enable:
       name: "EVSE Charging Enable"
-    request_authorization:
-      name: "EVSE Request Authorization"
     available:
       name: "EVSE Available"
+    request_authorization:
+      name: "EVSE Request Authorization"
 ```
 
 ### Buttons
@@ -175,18 +183,14 @@ text_sensor:
 
 The component exposes helper methods so you can trigger `AT+SUB` / `AT+UNSUB`
 commands directly from ESPHome lambdas. This allows custom subscriptions beyond
-the built-in fast power helpers. For example, you can add buttons that control a
-subscription to the `EMETERPOWER` feed:
+ESPHome's built-in update period. Check out the [AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
+for details
 
 ```yaml
-button:
-  - platform: template
-    name: "Subscribe to EMETERPOWER"
     on_press:
       - lambda: |-
           id(evse).at_sub("\"+EMETERPOWER\"", 1000);
-  - platform: template
-    name: "Unsubscribe from EMETERPOWER"
+
     on_press:
       - lambda: |-
           id(evse).at_unsub("\"+EMETERPOWER\"");
@@ -196,8 +200,6 @@ Passing an empty string to `at_unsub()` sends `AT+UNSUB=""`,
 which clears every active subscription:
 
 ```yaml
-  - platform: template
-    name: "Unsubscribe from all feeds"
     on_press:
       - lambda: |-
           id(evse).at_unsub("");
