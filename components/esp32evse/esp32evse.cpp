@@ -696,9 +696,7 @@ void ESP32EVSEComponent::update_state_(uint8_t state) {
   if (state < sizeof(STATE_NAMES) / sizeof(STATE_NAMES[0])) {
     state_name = STATE_NAMES[state];
   }
-  if (this->state_text_sensor_ != nullptr) {
-    this->state_text_sensor_->publish_state(state_name);
-  }
+  this->publish_text_sensor_state_(this->state_text_sensor_, state_name);
 }
 
 void ESP32EVSEComponent::update_enable_(bool enable) {
@@ -736,6 +734,15 @@ void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *
   number->publish_state(value);
 }
 
+void ESP32EVSEComponent::publish_text_sensor_state_(text_sensor::TextSensor *sensor,
+                                                    const std::string &state) {
+  if (sensor == nullptr)
+    return;
+  if (sensor->has_state() && sensor->state == state)
+    return;
+  sensor->publish_state(state);
+}
+
 void ESP32EVSEComponent::update_charging_current_(uint16_t value_tenths) {
   this->publish_scaled_number_(this->charging_current_number_, value_tenths);
 }
@@ -759,32 +766,26 @@ void ESP32EVSEComponent::update_emeter_charging_time_(uint32_t time_s) {
 }
 
 void ESP32EVSEComponent::update_chip_(const std::string &chip) {
-  if (this->chip_text_sensor_ != nullptr) {
-    this->chip_text_sensor_->publish_state(chip);
-  }
+  this->publish_text_sensor_state_(this->chip_text_sensor_, chip);
 }
 
 void ESP32EVSEComponent::update_version_(const std::string &version) {
-  if (this->version_text_sensor_ != nullptr) {
-    this->version_text_sensor_->publish_state(version);
-  }
+  this->publish_text_sensor_state_(this->version_text_sensor_, version);
 }
 
 void ESP32EVSEComponent::update_idf_version_(const std::string &idf_version) {
-  if (this->idf_version_text_sensor_ != nullptr) {
-    this->idf_version_text_sensor_->publish_state(idf_version);
-  }
+  this->publish_text_sensor_state_(this->idf_version_text_sensor_, idf_version);
 }
 
 void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
-  if (this->build_time_text_sensor_ != nullptr) {
-    std::string sanitized = build_time;
-    size_t pos = 0;
-    while ((pos = sanitized.find('"', pos)) != std::string::npos) {
-      sanitized.erase(pos, 1);
-    }
-    this->build_time_text_sensor_->publish_state(sanitized);
+  if (this->build_time_text_sensor_ == nullptr)
+    return;
+  std::string sanitized = build_time;
+  size_t pos = 0;
+  while ((pos = sanitized.find('"', pos)) != std::string::npos) {
+    sanitized.erase(pos, 1);
   }
+  this->publish_text_sensor_state_(this->build_time_text_sensor_, sanitized);
 }
 
 void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
@@ -793,39 +794,31 @@ void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
   time_t raw_time = static_cast<time_t>(timestamp);
   struct tm tm_info;
   if (!localtime_r(&raw_time, &tm_info)) {
-    this->device_time_text_sensor_->publish_state("invalid");
+    this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
     return;
   }
   char buffer[32];
   if (strftime(buffer, sizeof(buffer), "%d-%m-%y %H:%M:%S", &tm_info) == 0) {
-    this->device_time_text_sensor_->publish_state("invalid");
+    this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
     return;
   }
-  this->device_time_text_sensor_->publish_state(buffer);
+  this->publish_text_sensor_state_(this->device_time_text_sensor_, buffer);
 }
 
 void ESP32EVSEComponent::update_wifi_sta_cfg_(const std::string &ssid) {
-  if (this->wifi_sta_ssid_text_sensor_ != nullptr) {
-    this->wifi_sta_ssid_text_sensor_->publish_state(ssid);
-  }
+  this->publish_text_sensor_state_(this->wifi_sta_ssid_text_sensor_, ssid);
 }
 
 void ESP32EVSEComponent::update_wifi_sta_ip_(const std::string &ip) {
-  if (this->wifi_sta_ip_text_sensor_ != nullptr) {
-    this->wifi_sta_ip_text_sensor_->publish_state(ip);
-  }
+  this->publish_text_sensor_state_(this->wifi_sta_ip_text_sensor_, ip);
 }
 
 void ESP32EVSEComponent::update_wifi_sta_mac_(const std::string &mac) {
-  if (this->wifi_sta_mac_text_sensor_ != nullptr) {
-    this->wifi_sta_mac_text_sensor_->publish_state(mac);
-  }
+  this->publish_text_sensor_state_(this->wifi_sta_mac_text_sensor_, mac);
 }
 
 void ESP32EVSEComponent::update_device_name_(const std::string &name) {
-  if (this->device_name_text_sensor_ != nullptr) {
-    this->device_name_text_sensor_->publish_state(name);
-  }
+  this->publish_text_sensor_state_(this->device_name_text_sensor_, name);
 }
 
 void ESP32EVSEComponent::update_available_(bool available) {
