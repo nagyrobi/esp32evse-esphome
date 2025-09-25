@@ -13,6 +13,7 @@
 
 #include <deque>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace esphome {
@@ -73,7 +74,9 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     this->temperature_low_sensor_ = sensor;
   }
   void set_temperature_sensor(sensor::Sensor *sensor) { this->set_temperature_high_sensor(sensor); }
-  void set_heap_sensor(sensor::Sensor *sensor) { this->heap_sensor_ = sensor; }
+  void set_heap_sensor(sensor::Sensor *sensor) { this->set_heap_used_sensor(sensor); }
+  void set_heap_used_sensor(sensor::Sensor *sensor) { this->heap_used_sensor_ = sensor; }
+  void set_heap_total_sensor(sensor::Sensor *sensor) { this->heap_total_sensor_ = sensor; }
   void set_energy_consumption_sensor(sensor::Sensor *sensor) {
     this->energy_consumption_sensor_ = sensor;
   }
@@ -210,7 +213,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_device_name_(const std::string &name);
   void update_available_(bool available);
   void update_request_authorization_(bool request);
-  void update_heap_(uint32_t heap_bytes);
+  void update_heap_(std::optional<uint32_t> heap_used_bytes,
+                    std::optional<uint32_t> heap_total_bytes);
   void update_energy_consumption_(float value);
   void update_total_energy_consumption_(float value);
   void update_voltages_(float l1, float l2, float l3);
@@ -249,7 +253,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   sensor::Sensor *temperature_high_sensor_{nullptr};
   sensor::Sensor *temperature_low_sensor_{nullptr};
-  sensor::Sensor *heap_sensor_{nullptr};
+  sensor::Sensor *heap_used_sensor_{nullptr};
+  sensor::Sensor *heap_total_sensor_{nullptr};
   sensor::Sensor *energy_consumption_sensor_{nullptr};
   sensor::Sensor *total_energy_consumption_sensor_{nullptr};
   sensor::Sensor *voltage_l1_sensor_{nullptr};

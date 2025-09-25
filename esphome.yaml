@@ -87,8 +87,10 @@ sensor:
       name: "EVSE Session Time"
     emeter_charging_time:
       name: "EVSE Charging Time"
-    heap:
-      name: "EVSE Free Heap"
+    heap_used:
+      name: "EVSE Heap Used"
+    heap_total:
+      name: "EVSE Heap Total"
     energy_consumption:
       name: "EVSE Session Energy"
     total_energy_consumption:

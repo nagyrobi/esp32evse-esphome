@@ -128,7 +128,7 @@ void ESP32EVSEComponent::setup() {
       this->request_available_update();
     if (this->request_authorization_switch_ != nullptr)
       this->request_request_authorization_update();
-    if (this->heap_sensor_ != nullptr)
+    if (this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr)
       this->request_heap_update();
     if (this->energy_consumption_sensor_ != nullptr)
       this->request_energy_consumption_update();
@@ -214,7 +214,7 @@ void ESP32EVSEComponent::update() {
     this->request_emeter_session_time_update();
   if (this->emeter_charging_time_sensor_ != nullptr)
     this->request_emeter_charging_time_update();
-  if (this->heap_sensor_ != nullptr)
+  if (this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr)
     this->request_heap_update();
   if (this->energy_consumption_sensor_ != nullptr)
     this->request_energy_consumption_update();
@@ -565,8 +565,39 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+HEAP")) {
-    uint32_t heap = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_heap_(heap);
+    const char *cursor = value;
+    char *endptr = nullptr;
+    bool has_used = false;
+    bool has_total = false;
+    uint32_t heap_used = 0;
+    uint32_t heap_total = 0;
+
+    unsigned long parsed = strtoul(cursor, &endptr, 10);
+    if (endptr != cursor) {
+      heap_used = static_cast<uint32_t>(parsed);
+      has_used = true;
+      cursor = endptr;
+
+      while (*cursor != '\0' && isspace(static_cast<unsigned char>(*cursor)))
+        ++cursor;
+      if (*cursor == ',') {
+        ++cursor;
+        while (*cursor != '\0' && isspace(static_cast<unsigned char>(*cursor)))
+          ++cursor;
+        parsed = strtoul(cursor, &endptr, 10);
+        if (endptr != cursor) {
+          heap_total = static_cast<uint32_t>(parsed);
+          has_total = true;
+        }
+      }
+    }
+
+    if (has_used || has_total) {
+      this->update_heap_(has_used ? std::optional<uint32_t>(heap_used) : std::nullopt,
+                         has_total ? std::optional<uint32_t>(heap_total) : std::nullopt);
+    } else {
+      ESP_LOGW(TAG, "Unable to parse heap values from '%s'", value);
+    }
     return;
   }
   if (const char *value = value_after_prefix(line, "+EMETERCONSUM")) {
@@ -833,9 +864,13 @@ void ESP32EVSEComponent::update_request_authorization_(bool request) {
   }
 }
 
-void ESP32EVSEComponent::update_heap_(uint32_t heap_bytes) {
-  if (this->heap_sensor_ != nullptr) {
-    this->heap_sensor_->publish_state(heap_bytes);
+void ESP32EVSEComponent::update_heap_(std::optional<uint32_t> heap_used_bytes,
+                                      std::optional<uint32_t> heap_total_bytes) {
+  if (heap_used_bytes.has_value() && this->heap_used_sensor_ != nullptr) {
+    this->heap_used_sensor_->publish_state(*heap_used_bytes);
+  }
+  if (heap_total_bytes.has_value() && this->heap_total_sensor_ != nullptr) {
+    this->heap_total_sensor_->publish_state(*heap_total_bytes);
   }
 }
 
