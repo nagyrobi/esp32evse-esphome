@@ -62,11 +62,7 @@ def _build_number_schema(
                 "step": default_step,
             }
         )
-    try:
-        base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
-    except TypeError:
-        kwargs.pop("mode", None)
-        base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
+    base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
     schema = base.extend(
         {
             cv.Optional(CONF_MIN_VALUE): cv.float_,
