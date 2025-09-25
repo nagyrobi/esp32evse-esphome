@@ -41,10 +41,6 @@ or commenting out the related sections in `esphome.yaml`.
 sensor:
   - platform: esp32evse
     esp32evse_id: evse
-    temperature_high:
-      name: "EVSE Temperature High"
-    temperature_low:
-      name: "EVSE Temperature Low"
     emeter_power:
       name: "EVSE Power"
     emeter_charging_time:
@@ -67,6 +63,10 @@ sensor:
       name: "EVSE Current L2"
     current_l3:
       name: "EVSE Current L3"
+    temperature_high:
+      name: "EVSE Temperature High"
+    temperature_low:
+      name: "EVSE Temperature Low"
     wifi_rssi:
       name: "EVSE Wi-Fi RSSI"
     heap_used:
