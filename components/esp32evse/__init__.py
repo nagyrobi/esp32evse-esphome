@@ -103,21 +103,13 @@ def register_autoupdate_target(component, entity, command):
     target = _normalize_subscription_target(command)
     if target is None:
         return
-    # ``entity`` is a ``cg.Pvariable`` instance during normal code generation
-    # but ESPHome swaps in a lightweight ``MockObj`` during configuration
-    # validation.  ``MockObj`` intentionally disables ``__hash__`` so that it
-    # behaves like a regular Python object, which means we cannot use it as a
-    # dictionary key directly.  Instead, stash the registration against the
-    # object's identity.  ``id()`` is stable for the lifetime of the object and
-    # works for both the mock placeholders and the final ``Expression``
-    # instances created during code generation.
-    _AUTOUPDATE_REGISTRY[id(entity)] = (component, target)
+    _AUTOUPDATE_REGISTRY[entity] = (component, target)
 
 
 def get_autoupdate_target(entity):
     """Return the component/command pair for the given entity, if registered."""
 
-    return _AUTOUPDATE_REGISTRY.get(id(entity))
+    return _AUTOUPDATE_REGISTRY.get(entity)
 
 
 # Register automation helpers that depend on the symbols defined above.
