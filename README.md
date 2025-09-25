@@ -40,8 +40,7 @@ esp32evse:
 ## Entities exposed
 
 The example configuration enables every entity type currently supported by the
-custom component. You can selectively disable groups you do not need by removing
-or commenting out the related sections in `esphome.yaml`.
+custom component. 
 
 ### Sensors
 
@@ -82,7 +81,7 @@ sensor:
     heap_total:
       name: "EVSE Heap Total"
 ```
-If your installation only uses a single probe, expose it via the combined ``temperature`` key instead of the individual high/low entries:
+If your installation only uses a single temperature sensor, expose it via the combined ``temperature`` key instead of the individual high/low entries:
 
 ```yaml
     temperature:
