@@ -1,3 +1,7 @@
+"""Expose ESP32 EVSE measurements as ESPHome sensors."""
+
+# Import ESPHome helpers that allow us to describe sensors and their metadata at
+# configuration time.
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -51,6 +55,8 @@ CONF_CURRENT_L3 = "current_l3"
 CONF_WIFI_RSSI = "wifi_rssi"
 
 
+# Describe the optional YAML keys that create sensors.  We require at least one
+# to be defined so the section cannot be empty.
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -201,15 +207,21 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    """Instantiate the configured sensors and attach them to the EVSE component."""
+
     parent = await cg.get_variable(config[CONF_ESP32EVSE_ID])
 
     if temperature_high_config := config.get(CONF_TEMPERATURE_HIGH):
+        # Report the highest measured board temperature for diagnostics.
         sens = await sensor.new_sensor(temperature_high_config)
         cg.add(parent.set_temperature_high_sensor(sens))
     elif temperature_config := config.get(CONF_TEMPERATURE):
+        # Backwards compatibility: treat a single temperature sensor as the
+        # "high" reading so existing configurations keep working.
         sens = await sensor.new_sensor(temperature_config)
         cg.add(parent.set_temperature_high_sensor(sens))
     if temperature_low_config := config.get(CONF_TEMPERATURE_LOW):
+        # The lower temperature probe is optional but useful for thermal trends.
         sens = await sensor.new_sensor(temperature_low_config)
         cg.add(parent.set_temperature_low_sensor(sens))
     if power_config := config.get(CONF_EMETER_POWER):
@@ -225,6 +237,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(heap_used_config)
         cg.add(parent.set_heap_used_sensor(sens))
     elif heap_config := config.get(CONF_HEAP):
+        # Older configurations may reference ``heap`` instead of ``heap_used``.
         sens = await sensor.new_sensor(heap_config)
         cg.add(parent.set_heap_used_sensor(sens))
     if heap_total_config := config.get(CONF_HEAP_TOTAL):

@@ -1,12 +1,20 @@
+# Core firmware metadata so the node shows up with a friendly name inside ESPHome
+# Dashboard and Home Assistant.
 esphome:
   name: esp32evse_dev
 
+# Target board definition—ensures the correct pin map and toolchain are used.
 esp32:
   board: esp32dev
 
+# Enable verbose logging during development so serial output captures EVSE
+# protocol messages and troubleshooting details.
 logger:
   level: DEBUG
 
+# Configure both the primary Wi-Fi connection and a fallback access point to
+# make the device easy to provision even if the main network credentials are
+# incorrect.
 wifi:
   ssid: "YOUR_WIFI"
   password: "YOUR_PASSWORD"
@@ -14,28 +22,40 @@ wifi:
     ssid: "esp32evse"
     password: "changeme"
 
+# Allow ESPHome to expose a captive portal when the device boots into access
+# point mode.
 captive_portal:
 
+# Home Assistant native API support for remote control and monitoring.
 api:
 
+# Enable over-the-air firmware updates to avoid physical serial connections once
+# the node is deployed.
 ota:
 
+# Serial port wiring for the EVSE controller—communication happens over AT
+# commands at 115200 baud.
 uart:
   id: evse_uart
   tx_pin: GPIO17
   rx_pin: GPIO16
   baud_rate: 115200
 
+# Load the custom component from this repository instead of the default
+# ESPHome package index.
 external_components:
   - source:
       type: local
       path: components
     components: [esp32evse]
 
+# Instantiate the EVSE component and link it to the configured UART bus.
 esp32evse:
   id: evse
   uart_id: evse_uart
 
+# Binary sensors mirror boolean states (such as Wi-Fi connectivity) coming from
+# the EVSE controller.
 binary_sensor:
   - platform: esp32evse
     esp32evse_id: evse
@@ -44,6 +64,8 @@ binary_sensor:
     wifi_connected:
       name: "EVSE Wi-Fi Connected"
 
+# Buttons provide one-shot actions such as forcing a reset or authorizing a
+# vehicle for charging.
 button:
   - platform: esp32evse
     esp32evse_id: evse
@@ -52,6 +74,8 @@ button:
     authorize:
       name: "EVSE Authorize"
 
+# Numeric entities expose adjustable parameters like charging current limits to
+# Home Assistant automations.
 number:
   - platform: esp32evse
     esp32evse_id: evse
@@ -74,6 +98,8 @@ number:
     default_under_power_limit:
       name: "EVSE Default Under Power Limit"
 
+# Real-time measurements from the EVSE such as temperatures, power draw, and
+# Wi-Fi signal strength.
 sensor:
   - platform: esp32evse
     esp32evse_id: evse
@@ -110,6 +136,8 @@ sensor:
     wifi_rssi:
       name: "EVSE Wi-Fi RSSI"
 
+# Switches toggle on/off features like session enablement or manual
+# availability.
 switch:
   - platform: esp32evse
     esp32evse_id: evse
@@ -120,6 +148,8 @@ switch:
     request_authorization:
       name: "EVSE Request Authorization"
 
+# Text sensors carry metadata strings such as firmware details and network
+# identifiers that are useful for diagnostics.
 text_sensor:
   - platform: esp32evse
     esp32evse_id: evse

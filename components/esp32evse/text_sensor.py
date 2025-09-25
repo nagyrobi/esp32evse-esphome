@@ -1,3 +1,7 @@
+"""Expose EVSE metadata strings (like firmware version) as text sensors."""
+
+# Text sensors surface raw strings to Home Assistant.  The helpers below create
+# them from user configuration and link them back to the EVSE component.
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
@@ -22,7 +26,9 @@ CONF_DEVICE_NAME = "device_name"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
+            # Tie all text sensors back to the parent C++ component instance.
             cv.GenerateID(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
+            # Publish the EVSE state machine code so dashboards can show it.
             cv.Optional(CONF_STATE): text_sensor.text_sensor_schema(icon="mdi:ev-station"),
             cv.Optional(CONF_CHIP): text_sensor.text_sensor_schema(
                 icon="mdi:chip", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
@@ -69,6 +75,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    """Create the configured text sensors and bind them to the component."""
+
     parent = await cg.get_variable(config[CONF_ESP32EVSE_ID])
 
     if state_config := config.get(CONF_STATE):

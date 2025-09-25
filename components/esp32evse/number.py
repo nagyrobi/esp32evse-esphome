@@ -1,5 +1,9 @@
+"""Define the numeric entities used to configure the EVSE controller."""
+
 import inspect
 
+# Import ESPHome helpers that let us express configuration-time behaviour in
+# Python while generating strongly typed C++ code.
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
@@ -18,6 +22,8 @@ from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
 DEPENDENCIES = ["esp32evse"]
 
+# A single C++ class implements all the different numeric entities.  Behaviour
+# differences (command name, ranges, etc.) are controlled via metadata below.
 ESP32EVSEChargingCurrentNumber = esp32evse_ns.class_(
     "ESP32EVSEChargingCurrentNumber", number.Number
 )
@@ -46,6 +52,8 @@ def _build_number_schema(
     default_multiplier,
     entity_category=None,
 ):
+    """Create a sensor schema and defaults tailored to a specific EVSE command."""
+
     kwargs = {"icon": icon}
     if unit is not None:
         kwargs["unit_of_measurement"] = unit
@@ -78,10 +86,15 @@ def _build_number_schema(
 
 
 def _make_number_type(*, command, setter, **kwargs):
+    """Bundle together the metadata required to expose an EVSE number entity."""
+
     schema, defaults = _build_number_schema(**kwargs)
     return {"schema": schema, "defaults": defaults, "command": command, "setter": setter}
 
 
+# Metadata describing how each YAML key maps to an EVSE command, including
+# presentation defaults and which setter on the C++ class should receive the
+# resulting entity.
 _NUMBER_TYPES = {
     CONF_CHARGING_CURRENT: _make_number_type(
         icon="mdi:current-ac",
@@ -181,6 +194,8 @@ _NUMBER_TYPES = {
 }
 
 
+# Build a dynamic schema that exposes optional YAML blocks for every supported
+# EVSE number while insisting that at least one is defined.
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -195,6 +210,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    """Create each configured number entity and associate it with the EVSE."""
+
     parent = await cg.get_variable(config[CONF_ESP32EVSE_ID])
     for key, meta in _NUMBER_TYPES.items():
         if key not in config:
@@ -204,6 +221,8 @@ async def to_code(config):
         min_value = number_config.get(CONF_MIN_VALUE, defaults[CONF_MIN_VALUE])
         max_value = number_config.get(CONF_MAX_VALUE, defaults[CONF_MAX_VALUE])
         step = number_config.get(CONF_STEP, defaults[CONF_STEP])
+        # Generate the number entity stub and feed in the user-provided range
+        # overrides so the UI matches the EVSE firmware limits.
         num = await number.new_number(
             number_config,
             min_value=min_value,
@@ -211,7 +230,11 @@ async def to_code(config):
             step=step,
         )
         await cg.register_parented(num, config[CONF_ESP32EVSE_ID])
+        # Remember which AT command updates the EVSE when this entity changes.
         cg.add(num.set_command(meta["command"]))
         multiplier = number_config.get(CONF_MULTIPLIER, defaults[CONF_MULTIPLIER])
+        # Some EVSE commands expect scaled integers (for example tenths of an
+        # ampere).  The multiplier keeps the ESPHome API user friendly while
+        # still speaking the correct serial protocol.
         cg.add(num.set_multiplier(multiplier))
         cg.add(getattr(parent, meta["setter"])(num))

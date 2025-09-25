@@ -1,5 +1,8 @@
 #pragma once
 
+// Core ESPHome headers used by the component.  The order mirrors the logical
+// dependencies: we expose a UART powered component that publishes entities for
+// sensors, switches, numbers, buttons, etc.
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/button/button.h"
 #include "esphome/components/number/number.h"
@@ -28,6 +31,9 @@ class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
 
+// Main component class that orchestrates communication with the EVSE controller
+// and fans out the resulting state to the various ESPHome entities registered
+// through the Python glue code.
 class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
  public:
   ESP32EVSEComponent() : PollingComponent(60000) {}
@@ -36,6 +42,10 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void dump_config() override;
   void update() override;
 
+  // The following setter helpers are invoked from the Python glue code to
+  // connect ESPHome entities to this component instance.  Storing the pointers
+  // allows the C++ implementation to publish updates when data arrives from the
+  // EVSE over UART.
   void set_state_text_sensor(text_sensor::TextSensor *sensor) { this->state_text_sensor_ = sensor; }
   void set_chip_text_sensor(text_sensor::TextSensor *sensor) { this->chip_text_sensor_ = sensor; }
   void set_version_text_sensor(text_sensor::TextSensor *sensor) { this->version_text_sensor_ = sensor; }
@@ -137,6 +147,9 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     this->wifi_connected_binary_sensor_ = bs;
   }
 
+  // Methods that enqueue UART requests to refresh EVSE state.  These are called
+  // during setup and from entity actions (for example, when a user toggles a
+  // switch) so the ESPHome representation stays in sync with the charger.
   void request_state_update();
   void request_enable_update();
   void request_temperature_update();
@@ -171,12 +184,15 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_default_under_power_limit_update();
   void request_pending_authorization_update();
 
+  // Writers mirror user initiated actions back to the EVSE controller.
   void write_enable_state(bool enabled);
   void write_available_state(bool available);
   void write_request_authorization_state(bool request);
   void write_charging_current(float current);
   void write_number_value(ESP32EVSEChargingCurrentNumber *number, float value);
 
+  // Helpers for managing optional high-frequency subscriptions exposed by the
+  // EVSE firmware (for example, power telemetry feeds).
   void subscribe_fast_power_updates();
   void unsubscribe_fast_power_updates();
   void at_sub(const std::string &command, uint32_t period_ms);
@@ -185,6 +201,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void send_authorize_command();
 
  protected:
+  // Commands are queued while we wait for acknowledgements from the EVSE; this
+  // struct tracks their progress and callbacks.
   struct PendingCommand {
     std::string command;
     std::function<void(bool)> callback;
@@ -236,6 +254,9 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void publish_text_sensor_state_(text_sensor::TextSensor *sensor, const std::string &state);
   bool is_valid_subscription_argument_(const std::string &argument) const;
 
+  // Entity pointers registered via the setter functions above.  We guard every
+  // usage with a nullptr check so optional sensors don't consume memory when
+  // omitted from the configuration.
   text_sensor::TextSensor *state_text_sensor_{nullptr};
   text_sensor::TextSensor *chip_text_sensor_{nullptr};
   text_sensor::TextSensor *version_text_sensor_{nullptr};
@@ -285,10 +306,13 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSEPendingAuthorizationBinarySensor *pending_authorization_binary_sensor_{nullptr};
   ESP32EVSEWifiConnectedBinarySensor *wifi_connected_binary_sensor_{nullptr};
 
+  // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
   std::deque<PendingCommand> pending_commands_;
 };
 
+// Lightweight wrappers for the ESPHome entity classes.  They forward state
+// changes initiated from Home Assistant back to the component implementation.
 class ESP32EVSEEnableSwitch : public switch_::Switch, public Parented<ESP32EVSEComponent> {
  protected:
   void write_state(bool state) override;
@@ -305,6 +329,8 @@ class ESP32EVSERequestAuthorizationSwitch
   void write_state(bool state) override;
 };
 
+// Numbers represent adjustable EVSE parameters.  The multiplier bridges between
+// human-friendly units and the scaled integers required by the UART protocol.
 class ESP32EVSEChargingCurrentNumber : public number::Number, public Parented<ESP32EVSEComponent> {
  public:
   ESP32EVSEChargingCurrentNumber();
@@ -320,6 +346,7 @@ class ESP32EVSEChargingCurrentNumber : public number::Number, public Parented<ES
   float multiplier_{10.0f};
 };
 
+// Buttons simply trigger their associated EVSE command when pressed.
 class ESP32EVSEResetButton : public button::Button, public Parented<ESP32EVSEComponent> {
  protected:
   void press_action() override;
