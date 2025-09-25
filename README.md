@@ -77,7 +77,7 @@ or commenting out the related sections in `esphome.yaml`.
 
 ## Customization tips
 
-- Rename entities to match your Home Assistant naming convention.
+- Rename entities to match your automation platform naming convention.
 - Adjust number ranges to match the electrical limits of your installation.
 - Remove sections you do not need to reduce resource usage on the device.
 

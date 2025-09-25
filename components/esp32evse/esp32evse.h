@@ -84,7 +84,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     this->temperature_low_sensor_ = sensor;
   }
   void set_temperature_sensor(sensor::Sensor *sensor) { this->set_temperature_high_sensor(sensor); }
-  void set_heap_sensor(sensor::Sensor *sensor) { this->set_heap_used_sensor(sensor); }
   void set_heap_used_sensor(sensor::Sensor *sensor) { this->heap_used_sensor_ = sensor; }
   void set_heap_total_sensor(sensor::Sensor *sensor) { this->heap_total_sensor_ = sensor; }
   void set_energy_consumption_sensor(sensor::Sensor *sensor) {
@@ -312,7 +311,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 };
 
 // Lightweight wrappers for the ESPHome entity classes.  They forward state
-// changes initiated from Home Assistant back to the component implementation.
+// changes initiated from external clients back to the component implementation.
 class ESP32EVSEEnableSwitch : public switch_::Switch, public Parented<ESP32EVSEComponent> {
  protected:
   void write_state(bool state) override;

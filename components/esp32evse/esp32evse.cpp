@@ -41,7 +41,7 @@ const char *value_after_prefix(const std::string &line, const char *prefix) {
 }
 
 // Utility: trim whitespace and optional quotes from a string returned by the
-// EVSE so we can forward clean values to Home Assistant.
+// EVSE so we can forward clean values to downstream consumers.
 std::string trim_copy(const char *value) {
   if (value == nullptr)
     return {};
@@ -789,7 +789,7 @@ void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t lo
 }
 
 // Helper: convert the raw integer value reported by the EVSE into the scaled
-// float Home Assistant expects, then publish it on the number entity.
+// float the number entity expects before publishing it.
 void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value) {
   if (number == nullptr)
     return;
@@ -801,7 +801,7 @@ void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *
 }
 
 // Helper: only publish text sensor updates when the value actually changes to
-// avoid unnecessary state spam in Home Assistant.
+// avoid unnecessary state spam for subscribers.
 void ESP32EVSEComponent::publish_text_sensor_state_(text_sensor::TextSensor *sensor,
                                                     const std::string &state) {
   if (sensor == nullptr)
