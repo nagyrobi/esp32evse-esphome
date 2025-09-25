@@ -31,7 +31,7 @@ try:
 except ImportError:
     from esphome.const import UNIT_WATT_HOURS as UNIT_WATT_HOUR
 
-from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent
+from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, register_autoupdate_target
 
 DEPENDENCIES = ["esp32evse"]
 
@@ -207,54 +207,71 @@ async def to_code(config):
         # Report the highest measured board temperature for diagnostics.
         sens = await sensor.new_sensor(temperature_high_config)
         cg.add(parent.set_temperature_high_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+TEMP?")
     elif temperature_config := config.get(CONF_TEMPERATURE):
         # Backwards compatibility: treat a single temperature sensor as the
         # "high" reading so existing configurations keep working.
         sens = await sensor.new_sensor(temperature_config)
         cg.add(parent.set_temperature_high_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+TEMP?")
     if temperature_low_config := config.get(CONF_TEMPERATURE_LOW):
         # The lower temperature probe is optional but useful for thermal trends.
         sens = await sensor.new_sensor(temperature_low_config)
         cg.add(parent.set_temperature_low_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+TEMP?")
     if power_config := config.get(CONF_EMETER_POWER):
         sens = await sensor.new_sensor(power_config)
         cg.add(parent.set_emeter_power_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERPOWER?")
     if session_config := config.get(CONF_EMETER_SESSION_TIME):
         sens = await sensor.new_sensor(session_config)
         cg.add(parent.set_emeter_session_time_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERSESTIME?")
     if charging_config := config.get(CONF_EMETER_CHARGING_TIME):
         sens = await sensor.new_sensor(charging_config)
         cg.add(parent.set_emeter_charging_time_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERCHTIME?")
     if heap_used_config := config.get(CONF_HEAP_USED):
         sens = await sensor.new_sensor(heap_used_config)
         cg.add(parent.set_heap_used_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+HEAP?")
     if heap_total_config := config.get(CONF_HEAP_TOTAL):
         sens = await sensor.new_sensor(heap_total_config)
         cg.add(parent.set_heap_total_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+HEAP?")
     if energy_config := config.get(CONF_ENERGY_CONSUMPTION):
         sens = await sensor.new_sensor(energy_config)
         cg.add(parent.set_energy_consumption_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERCONSUM?")
     if total_energy_config := config.get(CONF_TOTAL_ENERGY_CONSUMPTION):
         sens = await sensor.new_sensor(total_energy_config)
         cg.add(parent.set_total_energy_consumption_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERTOTCONSUM?")
     if voltage_l1_config := config.get(CONF_VOLTAGE_L1):
         sens = await sensor.new_sensor(voltage_l1_config)
         cg.add(parent.set_voltage_l1_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERVOLTAGE?")
     if voltage_l2_config := config.get(CONF_VOLTAGE_L2):
         sens = await sensor.new_sensor(voltage_l2_config)
         cg.add(parent.set_voltage_l2_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERVOLTAGE?")
     if voltage_l3_config := config.get(CONF_VOLTAGE_L3):
         sens = await sensor.new_sensor(voltage_l3_config)
         cg.add(parent.set_voltage_l3_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERVOLTAGE?")
     if current_l1_config := config.get(CONF_CURRENT_L1):
         sens = await sensor.new_sensor(current_l1_config)
         cg.add(parent.set_current_l1_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERCURRENT?")
     if current_l2_config := config.get(CONF_CURRENT_L2):
         sens = await sensor.new_sensor(current_l2_config)
         cg.add(parent.set_current_l2_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERCURRENT?")
     if current_l3_config := config.get(CONF_CURRENT_L3):
         sens = await sensor.new_sensor(current_l3_config)
         cg.add(parent.set_current_l3_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+EMETERCURRENT?")
     if wifi_rssi_config := config.get(CONF_WIFI_RSSI):
         sens = await sensor.new_sensor(wifi_rssi_config)
         cg.add(parent.set_wifi_rssi_sensor(sens))
+        register_autoupdate_target(parent, sens, "AT+WIFISTACONN?")

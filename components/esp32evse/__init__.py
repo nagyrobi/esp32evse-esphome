@@ -12,6 +12,7 @@ import esphome.codegen as cg
 # Provide validation utilities to make sure user supplied YAML configuration is
 # structurally correct before we attempt to generate any C++ code.
 import esphome.config_validation as cv
+from esphome import automation
 # The component communicates via UART, therefore we need to import and require
 # the UART helpers to bind the C++ object to ESPHome's UART subsystem.
 from esphome.components import uart
@@ -30,6 +31,9 @@ esp32evse_ns = cg.esphome_ns.namespace("esp32evse")
 # ``UARTDevice`` so it can talk to the EVSE controller over serial.
 ESP32EVSEComponent = esp32evse_ns.class_(
     "ESP32EVSEComponent", cg.PollingComponent, uart.UARTDevice
+)
+ESP32EVSEAutoUpdateAction = esp32evse_ns.class_(
+    "ESP32EVSEAutoUpdateAction", automation.Action
 )
 
 CONF_ESP32EVSE_ID = "esp32evse_id"
@@ -66,3 +70,47 @@ async def to_code(config):
     # Finally, bind the component to the configured UART bus so serial
     # communication with the EVSE controller is possible.
     await uart.register_uart_device(var, config)
+
+
+_AUTOUPDATE_REGISTRY = {}
+
+
+def _normalize_subscription_target(command):
+    """Convert an AT command into the corresponding subscription token."""
+
+    if command is None:
+        return None
+    command = str(command).strip()
+    if not command:
+        return None
+    if command.startswith("\"") and command.endswith("\"") and len(command) >= 2:
+        command = command[1:-1]
+    if command.startswith("AT"):
+        command = command[2:]
+    command = command.lstrip()
+    if command.endswith("?"):
+        command = command[:-1]
+    if not command:
+        return None
+    if not command.startswith("+"):
+        command = "+" + command.lstrip("+")
+    return command
+
+
+def register_autoupdate_target(component, entity, command):
+    """Remember which AT command keeps *entity* in sync via AT+SUB."""
+
+    target = _normalize_subscription_target(command)
+    if target is None:
+        return
+    _AUTOUPDATE_REGISTRY[entity] = (component, target)
+
+
+def get_autoupdate_target(entity):
+    """Return the component/command pair for the given entity, if registered."""
+
+    return _AUTOUPDATE_REGISTRY.get(entity)
+
+
+# Register automation helpers that depend on the symbols defined above.
+from . import autoupdate_action  # noqa: E402,F401
