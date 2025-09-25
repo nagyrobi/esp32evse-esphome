@@ -47,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WIFI_CONNECTED): binary_sensor.binary_sensor_schema(
                 ESP32EVSEWifiConnectedBinarySensor,
                 device_class=DEVICE_CLASS_CONNECTIVITY,
-                icon="mdi:wifi-check",
+                icon="mdi:check-network-outline",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
