@@ -7,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
+    CONF_MODE,
     CONF_STEP,
     ENTITY_CATEGORY_CONFIG,
     UNIT_AMPERE,
@@ -210,6 +211,9 @@ async def to_code(config):
         min_value = number_config.get(CONF_MIN_VALUE, defaults[CONF_MIN_VALUE])
         max_value = number_config.get(CONF_MAX_VALUE, defaults[CONF_MAX_VALUE])
         step = number_config.get(CONF_STEP, defaults[CONF_STEP])
+        if CONF_MODE not in number_config:
+            number_config = dict(number_config)
+            number_config[CONF_MODE] = number.NumberMode.BOX
         num = await number.new_number(
             number_config,
             min_value=min_value,
