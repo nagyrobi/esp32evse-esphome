@@ -35,45 +35,135 @@ or commenting out the related sections in `esphome.yaml`.
 
 ### Sensors
 
-- **Temperatures**
-- **Power**, **session duration**, and **charging duration**
-- **Heap memory usage** (used and total)
-- **Session time** and **total energy consumption**
-- **Line voltages** (L1/L2/L3)
-- **Line currents** (L1/L2/L3)
-- **Wi-Fi RSSI** (signal strength)
+```yaml
+sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    temperature_high:
+      name: "EVSE Temperature High"
+    temperature_low:
+      name: "EVSE Temperature Low"
+    emeter_power:
+      name: "EVSE Power"
+    emeter_charging_time:
+      name: "EVSE Charging Time"
+    emeter_session_time:
+      name: "EVSE Session Time"
+    energy_consumption:
+      name: "EVSE Session Energy"
+    total_energy_consumption:
+      name: "EVSE Total Energy"
+    voltage_l1:
+      name: "EVSE Voltage L1"
+    voltage_l2:
+      name: "EVSE Voltage L2"
+    voltage_l3:
+      name: "EVSE Voltage L3"
+    current_l1:
+      name: "EVSE Current L1"
+    current_l2:
+      name: "EVSE Current L2"
+    current_l3:
+      name: "EVSE Current L3"
+    wifi_rssi:
+      name: "EVSE Wi-Fi RSSI"
+    heap_used:
+      name: "EVSE Heap Used"
+    heap_total:
+      name: "EVSE Heap Total"
+```
 
 ### Switches
 
-- **Charging enable** – Master enable/disable for the charger, can be used to start/stop charging.
-- **Available** – Manually mark the charger as available to clients.
-- **Request authorization** – Toggle whether authorization is requested for new sessions.
+```yaml
+switch:
+  - platform: esp32evse
+    esp32evse_id: evse
+    enable:
+      name: "EVSE Charging Enable"
+    request_authorization:
+      name: "EVSE Request Authorization"
+    available:
+      name: "EVSE Available"
+```
 
 ### Buttons
 
-- **Authorize** – Sends an authorization command for the currently connected vehicle if request authorization was enabled.
-- **Reset** – Triggers a software reset of the charger.
+```yaml
+button:
+  - platform: esp32evse
+    esp32evse_id: evse
+    authorize:
+      name: "EVSE Authorize"
+    reset:
+      name: "EVSE Restart"
+```
 
 ### Binary sensors
 
-- **Pending Authorization** – Indicates when the charger waits for authorization if request authorization was enabled.
-- **Wi-Fi Connected** – Shows the connection status of the Wi-Fi station interface.
+```yaml
+binary_sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    pending_authorization:
+      name: "EVSE Pending Authorization"
+    wifi_connected:
+      name: "EVSE Wi-Fi Connected"
+```
 
 ### Numbers
 
-- **Charging current** (instant per session, default, maximum possible)
-- **Consumption limit** (instant per session, default)
-- **Charging time limit** (instant per session, default)
-- **Under-power limit** (instant per session, default)
+```yaml
+number:
+  - platform: esp32evse
+    esp32evse_id: evse
+    charging_current:
+      name: "EVSE Charging Current"
+    default_charging_current:
+      name: "EVSE Default Charging Current"
+    maximum_charging_current:
+      name: "EVSE Maximum Charging Current"
+    consumption_limit:
+      name: "EVSE Consumption Limit"
+    default_consumption_limit:
+      name: "EVSE Default Consumption Limit"
+    charging_time_limit:
+      name: "EVSE Charging Time Limit"
+    default_charging_time_limit:
+      name: "EVSE Default Charging Time Limit"
+    under_power_limit:
+      name: "EVSE Under Power Limit"
+    default_under_power_limit:
+      name: "EVSE Default Under Power Limit"
+```
 
 ### Text sensors
 
-- **Charger state** according to the J1772 standard
-- **Configured device name**
-- **MCU identification**
-- **Firmware version** and **ESP-IDF version**
-- **Firmware build time** and **device runtime clock**
-- **Wi-Fi SSID**, **IP address**, **MAC address**
+```yaml
+text_sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    state:
+      name: "EVSE State (J1772)"
+    device_name:
+      name: "EVSE Device Name"
+    device_time:
+      name: "EVSE Device Time"
+    wifi_sta_ssid:
+      name: "EVSE Wi-Fi SSID"
+    wifi_sta_ip:
+      name: "EVSE Wi-Fi IP"
+    wifi_sta_mac:
+      name: "EVSE Wi-Fi MAC"
+    chip:
+      name: "EVSE MCU"
+    build_time:
+      name: "EVSE Build Time"
+    version:
+      name: "EVSE Firmware Version"
+    idf_version:
+      name: "EVSE IDF Version"
+```
 
 ## Customization tips
 
