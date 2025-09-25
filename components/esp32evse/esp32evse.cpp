@@ -382,12 +382,23 @@ void ESP32EVSEComponent::write_charging_current(float current) {
   this->write_number_value(this->charging_current_number_, current);
 }
 
+float ESP32EVSEComponent::clamp_charging_current_value(ESP32EVSEChargingCurrentNumber *number, float value) const {
+  if ((number == this->charging_current_number_ || number == this->default_charging_current_number_) &&
+      !std::isnan(this->maximum_charging_current_limit_)) {
+    // The EVSE only accepts runtime values up to the reported maximum, so cap writes accordingly.
+    if (value > this->maximum_charging_current_limit_)
+      value = this->maximum_charging_current_limit_;
+  }
+  return value;
+}
+
 void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *number, float value) {
   if (number == nullptr)
     return;
   const std::string &command = number->get_command();
   if (command.empty())
     return;
+  value = this->clamp_charging_current_value(number, value);
   float scaled_value = value * number->get_multiplier();
   int32_t to_send = static_cast<int32_t>(std::lroundf(scaled_value));
   std::string cmd = command + "=" + to_string(to_send);
@@ -974,6 +985,14 @@ void ESP32EVSEComponent::update_default_charging_current_(uint16_t value_tenths)
 }
 
 void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_amps) {
+  float limit = static_cast<float>(value_amps);
+  if (this->maximum_charging_current_number_ != nullptr) {
+    float multiplier = this->maximum_charging_current_number_->get_multiplier();
+    if (multiplier == 0.0f)
+      multiplier = 1.0f;
+    limit = value_amps / multiplier;
+  }
+  this->maximum_charging_current_limit_ = limit;
   this->publish_scaled_number_(this->maximum_charging_current_number_, value_amps);
 }
 
@@ -1065,8 +1084,9 @@ ESP32EVSEChargingCurrentNumber::ESP32EVSEChargingCurrentNumber() {
 void ESP32EVSEChargingCurrentNumber::control(float value) {
   if (this->parent_ == nullptr)
     return;
-  this->publish_state(value);
-  this->parent_->write_number_value(this, value);
+  float limited = this->parent_->clamp_charging_current_value(this, value);
+  this->publish_state(limited);
+  this->parent_->write_number_value(this, limited);
 }
 
 // Buttons translate presses into EVSE commands with no additional state.
