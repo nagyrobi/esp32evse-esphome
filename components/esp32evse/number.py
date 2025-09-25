@@ -7,7 +7,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
-    CONF_MODE,
     CONF_STEP,
     ENTITY_CATEGORY_CONFIG,
     UNIT_AMPERE,
@@ -37,15 +36,6 @@ CONF_MULTIPLIER = "multiplier"
 _NUMBER_SCHEMA_SUPPORTS_LIMITS = "min_value" in inspect.signature(  # pragma: no branch
     number.number_schema
 ).parameters
-_NUMBER_SCHEMA_SUPPORTS_MODE = "mode" in inspect.signature(  # pragma: no branch
-    number.number_schema
-).parameters
-
-
-def _normalize_mode(mode):
-    if mode is None:
-        return None
-    return getattr(mode, "value", mode)
 
 def _build_number_schema(
     icon,
@@ -62,8 +52,7 @@ def _build_number_schema(
         kwargs["unit_of_measurement"] = unit
     if entity_category is not None:
         kwargs["entity_category"] = entity_category
-    normalized_mode = _normalize_mode(mode)
-    if mode is not None and _NUMBER_SCHEMA_SUPPORTS_MODE:
+    if mode is not None:
         kwargs["mode"] = mode
     if _NUMBER_SCHEMA_SUPPORTS_LIMITS:
         kwargs.update(
@@ -74,18 +63,14 @@ def _build_number_schema(
             }
         )
     base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
-    extend_schema = {
-        cv.Optional(CONF_MIN_VALUE): cv.float_,
-        cv.Optional(CONF_MAX_VALUE): cv.float_,
-        cv.Optional(CONF_STEP): cv.positive_float,
-        cv.Optional(CONF_MULTIPLIER): cv.positive_float,
-    }
-    if mode is not None and not _NUMBER_SCHEMA_SUPPORTS_MODE:
-        extend_schema[cv.Optional(CONF_MODE, default=normalized_mode)] = cv.one_of(
-            *[m.value for m in number.NumberMode],
-            lower=True,
-        )
-    schema = base.extend(extend_schema)
+    schema = base.extend(
+        {
+            cv.Optional(CONF_MIN_VALUE): cv.float_,
+            cv.Optional(CONF_MAX_VALUE): cv.float_,
+            cv.Optional(CONF_STEP): cv.positive_float,
+            cv.Optional(CONF_MULTIPLIER): cv.positive_float,
+        }
+    )
     defaults = {
         CONF_MIN_VALUE: default_min,
         CONF_MAX_VALUE: default_max,
