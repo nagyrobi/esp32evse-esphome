@@ -829,7 +829,7 @@ void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
     return;
   }
   char buffer[32];
-  if (strftime(buffer, sizeof(buffer), "%d-%m-%y %H:%M:%S", &tm_info) == 0) {
+  if (strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M", &tm_info) == 0) {
     this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
     return;
   }
