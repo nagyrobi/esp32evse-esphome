@@ -45,15 +45,12 @@ def _build_number_schema(
     default_step,
     default_multiplier,
     entity_category=None,
-    mode=None,
 ):
     kwargs = {"icon": icon}
     if unit is not None:
         kwargs["unit_of_measurement"] = unit
     if entity_category is not None:
         kwargs["entity_category"] = entity_category
-    if mode is not None:
-        kwargs["mode"] = mode
     if _NUMBER_SCHEMA_SUPPORTS_LIMITS:
         kwargs.update(
             {
@@ -62,11 +59,7 @@ def _build_number_schema(
                 "step": default_step,
             }
         )
-    try:
-        base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
-    except TypeError:
-        kwargs.pop("mode", None)
-        base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
+    base = number.number_schema(ESP32EVSEChargingCurrentNumber, **kwargs)
     schema = base.extend(
         {
             cv.Optional(CONF_MIN_VALUE): cv.float_,
@@ -97,7 +90,6 @@ _NUMBER_TYPES = {
         default_max=63.0,
         default_step=0.1,
         default_multiplier=10.0,
-        mode=number.NumberMode.BOX,
         command="AT+CHCUR",
         setter="set_charging_current_number",
     ),
@@ -109,7 +101,6 @@ _NUMBER_TYPES = {
         default_step=0.1,
         default_multiplier=10.0,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        mode=number.NumberMode.BOX,
         command="AT+DEFCHCUR",
         setter="set_default_charging_current_number",
     ),
@@ -121,7 +112,6 @@ _NUMBER_TYPES = {
         default_step=1.0,
         default_multiplier=1.0,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        mode=number.NumberMode.BOX,
         command="AT+MAXCHCUR",
         setter="set_maximum_charging_current_number",
     ),
@@ -132,7 +122,6 @@ _NUMBER_TYPES = {
         default_max=100000.0,
         default_step=10.0,
         default_multiplier=1.0,
-        mode=number.NumberMode.BOX,
         command="AT+CONSUMLIM",
         setter="set_consumption_limit_number",
     ),
@@ -144,7 +133,6 @@ _NUMBER_TYPES = {
         default_step=10.0,
         default_multiplier=1.0,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        mode=number.NumberMode.BOX,
         command="AT+DEFCONSUMLIM",
         setter="set_default_consumption_limit_number",
     ),
@@ -155,7 +143,6 @@ _NUMBER_TYPES = {
         default_max=86400.0,
         default_step=60.0,
         default_multiplier=1.0,
-        mode=number.NumberMode.BOX,
         command="AT+CHTIMELIM",
         setter="set_charging_time_limit_number",
     ),
@@ -167,7 +154,6 @@ _NUMBER_TYPES = {
         default_step=60.0,
         default_multiplier=1.0,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        mode=number.NumberMode.BOX,
         command="AT+DEFCHTIMELIM",
         setter="set_default_charging_time_limit_number",
     ),
@@ -178,7 +164,6 @@ _NUMBER_TYPES = {
         default_max=100000.0,
         default_step=10.0,
         default_multiplier=1.0,
-        mode=number.NumberMode.BOX,
         command="AT+UNDERPOWERLIM",
         setter="set_under_power_limit_number",
     ),
@@ -190,7 +175,6 @@ _NUMBER_TYPES = {
         default_step=10.0,
         default_multiplier=1.0,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        mode=number.NumberMode.BOX,
         command="AT+DEFUNDERPOWERLIM",
         setter="set_default_under_power_limit_number",
     ),
