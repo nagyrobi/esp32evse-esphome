@@ -113,4 +113,34 @@ which clears every active subscription:
           id(evse).at_unsub("");
 ```
 
+### Using the `esp32evse.autoupdate` action
+
+Manually calling `at_sub()` from lambdas is powerful but requires remembering
+the AT command names. The component therefore also exposes an
+`esp32evse.autoupdate` action that maps the command from the entity ID:
+
+```yaml
+text_sensor:
+  - platform: esp32evse
+    esp32evse_id: evse
+    state:
+      id: evse_state
+
+interval:
+  - interval: 10s
+    then:
+      - esp32evse.autoupdate:
+          id: evse_state
+          period: 1000
+```
+
+When invoked with a non-zero period the action subscribes to the fast update
+feed associated with the entity. Passing `0` unsubscribes from the same feed:
+
+```yaml
+      - esp32evse.autoupdate:
+          id: evse_state
+          period: 0
+```
+
 

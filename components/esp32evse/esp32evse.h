@@ -10,6 +10,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -31,6 +32,7 @@ class ESP32EVSEResetButton;
 class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
+template<typename... Ts> class ESP32EVSEAutoUpdateAction;
 
 // Main component class that orchestrates communication with the EVSE controller
 // and fans out the resulting state to the various ESPHome entities registered
@@ -364,6 +366,34 @@ class ESP32EVSEPendingAuthorizationBinarySensor
 
 class ESP32EVSEWifiConnectedBinarySensor : public binary_sensor::BinarySensor,
                                            public Parented<ESP32EVSEComponent> {};
+
+template<typename... Ts> class ESP32EVSEAutoUpdateAction : public automation::Action<Ts...> {
+ public:
+  explicit ESP32EVSEAutoUpdateAction(ESP32EVSEComponent *parent) : parent_(parent) {}
+
+  void set_command(const std::string &command) { this->command_ = command; }
+  TEMPLATABLE_VALUE(uint32_t, period)
+
+  void play(Ts... x) override {
+    if (this->parent_ == nullptr)
+      return;
+    if (this->command_.empty())
+      return;
+    std::string command = this->command_;
+    if (!command.empty() && command.front() != '"')
+      command = "\"" + command + "\"";
+    uint32_t period = this->period_.value(x...);
+    if (period == 0) {
+      this->parent_->at_unsub(command);
+    } else {
+      this->parent_->at_sub(command, period);
+    }
+  }
+
+ protected:
+  ESP32EVSEComponent *parent_;
+  std::string command_;
+};
 
 }  // namespace esp32evse
 }  // namespace esphome

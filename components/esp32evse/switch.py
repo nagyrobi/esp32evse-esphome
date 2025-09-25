@@ -7,7 +7,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 
-from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
+from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns, register_autoupdate_target
 
 DEPENDENCIES = ["esp32evse"]
 
@@ -64,11 +64,14 @@ async def to_code(config):
         sw = await switch.new_switch(enable_config)
         await cg.register_parented(sw, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_enable_switch(sw))
+        register_autoupdate_target(parent, sw, "AT+ENABLE?")
     if available_config := config.get(CONF_AVAILABLE):
         sw = await switch.new_switch(available_config)
         await cg.register_parented(sw, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_available_switch(sw))
+        register_autoupdate_target(parent, sw, "AT+AVAILABLE?")
     if req_auth_config := config.get(CONF_REQUEST_AUTHORIZATION):
         sw = await switch.new_switch(req_auth_config)
         await cg.register_parented(sw, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_request_authorization_switch(sw))
+        register_autoupdate_target(parent, sw, "AT+REQAUTH?")

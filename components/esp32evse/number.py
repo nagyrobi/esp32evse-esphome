@@ -18,7 +18,7 @@ from esphome.const import (
     UNIT_WATT,
 )
 
-from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
+from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns, register_autoupdate_target
 
 DEPENDENCIES = ["esp32evse"]
 
@@ -238,3 +238,4 @@ async def to_code(config):
         # still speaking the correct serial protocol.
         cg.add(num.set_multiplier(multiplier))
         cg.add(getattr(parent, meta["setter"])(num))
+        register_autoupdate_target(parent, num, meta["command"])
