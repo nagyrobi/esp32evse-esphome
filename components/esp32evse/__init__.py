@@ -75,6 +75,20 @@ async def to_code(config):
 _AUTOUPDATE_REGISTRY = {}
 
 
+def _registry_key(obj):
+    """Return a stable dictionary key for ESPHome IDs and generated objects."""
+
+    if obj is None:
+        return None
+    # ``cv.use_id`` objects expose their identifier via ``.id`` while the
+    # generated ESPHome mock objects have the attribute tucked under ``.id.id``.
+    candidate = getattr(obj, "id", obj)
+    candidate = getattr(candidate, "id", candidate)
+    if isinstance(candidate, str):
+        return candidate
+    return None
+
+
 def _normalize_subscription_target(command):
     """Convert an AT command into the corresponding subscription token."""
 
@@ -111,12 +125,22 @@ def register_autoupdate_target(component, entity, command):
     # object's identity.  ``id()`` is stable for the lifetime of the object and
     # works for both the mock placeholders and the final ``Expression``
     # instances created during code generation.
+    # Keep track of the mapping both by object identity (useful while ESPHome is
+    # still generating C++ code) and by the underlying ``id`` string so that
+    # later lookups performed via ``cv.use_id`` succeed regardless of which
+    # representation is used.
     _AUTOUPDATE_REGISTRY[id(entity)] = (component, target)
+    key = _registry_key(getattr(entity, "_id", None))
+    if key is not None:
+        _AUTOUPDATE_REGISTRY[key] = (component, target)
 
 
 def get_autoupdate_target(entity):
     """Return the component/command pair for the given entity, if registered."""
 
+    key = _registry_key(entity)
+    if key is not None and key in _AUTOUPDATE_REGISTRY:
+        return _AUTOUPDATE_REGISTRY[key]
     return _AUTOUPDATE_REGISTRY.get(id(entity))
 
 

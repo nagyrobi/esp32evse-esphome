@@ -40,8 +40,12 @@ AUTOUPDATE_ACTION_SCHEMA = cv.Schema(
 
 @automation.register_action("esp32evse.autoupdate", ESP32EVSEAutoUpdateAction, AUTOUPDATE_ACTION_SCHEMA)
 async def esp32evse_autoupdate_to_code(config, action_id, template_arg, args):
-    target = await cg.get_variable(config[CONF_ID])
-    mapping = get_autoupdate_target(target)
+    entity_id = config[CONF_ID]
+    target = await cg.get_variable(entity_id)
+    # Look up the entity by its ESPHome ``id`` first; if the user didn't
+    # explicitly assign one we fall back to the object identity, mirroring the
+    # registration logic.
+    mapping = get_autoupdate_target(entity_id) or get_autoupdate_target(target)
     if mapping is None:
         raise cv.Invalid(
             "The referenced entity does not belong to the ESP32 EVSE component or does not expose an AT command"
