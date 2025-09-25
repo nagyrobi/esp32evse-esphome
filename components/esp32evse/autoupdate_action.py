@@ -4,6 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import binary_sensor, number, sensor, switch, text_sensor
+import voluptuous as vol
 from esphome.const import CONF_ID, CONF_PERIOD
 
 from . import (
@@ -25,7 +26,7 @@ def _autoupdate_target_id(value):
     for validator in validators:
         try:
             return validator(value)
-        except cv.Invalid:
+        except (cv.Invalid, vol.Invalid):
             continue
     raise cv.Invalid("ID must reference an ESP32 EVSE text sensor, sensor, switch, number, or binary sensor")
 
