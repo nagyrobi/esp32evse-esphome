@@ -195,8 +195,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   // Helpers for managing optional high-frequency subscriptions exposed by the
   // EVSE firmware (for example, power telemetry feeds).
-  void subscribe_fast_power_updates();
-  void unsubscribe_fast_power_updates();
   void at_sub(const std::string &command, uint32_t period_ms);
   void at_unsub(const std::string &command = "");
   void send_reset_command();

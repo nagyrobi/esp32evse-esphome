@@ -409,16 +409,6 @@ void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *numb
   });
 }
 
-// Convenience wrappers for popular subscription targets.  They are exposed to
-// users through templated buttons in YAML.
-void ESP32EVSEComponent::subscribe_fast_power_updates() {
-  this->send_command_("AT+SUB=\"+EMETERPOWER\",500");
-}
-
-void ESP32EVSEComponent::unsubscribe_fast_power_updates() {
-  this->send_command_("AT+UNSUB=\"+EMETERPOWER\"");
-}
-
 void ESP32EVSEComponent::at_sub(const std::string &command, uint32_t period_ms) {
   if (!this->is_valid_subscription_argument_(command)) {
     ESP_LOGW(TAG,
