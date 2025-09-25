@@ -229,6 +229,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   bool send_command_(const std::string &command, std::function<void(bool)> callback = nullptr);
   void request_number_update_(ESP32EVSEChargingCurrentNumber *number);
   void publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value);
+  void publish_text_sensor_state_(text_sensor::TextSensor *sensor, const std::string &state);
   bool is_valid_subscription_argument_(const std::string &argument) const;
 
   text_sensor::TextSensor *state_text_sensor_{nullptr};
