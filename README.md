@@ -34,7 +34,9 @@ If you use the [esp32s2-evse-d-a board](https://github.com/dzurikmiroslav/esp32-
 | 3: RX |
 | 4: +5V |
 
-Configure the UART as per ESPHome docs, and instantiate the EVSE component and link it to the configured UART bus.
+Use cable as short as possible.
+
+Configure the UART as per ESPHome docs, and instantiate the EVSE component and link it to the configured UART bus:
 
 ```yaml
 uart:
