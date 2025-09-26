@@ -1,9 +1,17 @@
-# ESP3-2EVSE ESPHome Integration
+# ESP32-EVSE ESPHome Integration
 
-This repository provides an [ESPHome](https://esphome.io/) configuration and custom
-component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller.
+This repository provides an [ESPHome](https://esphome.io/) custom component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller.
 
 It implements the communication with ESP32-EVSE using [AT Commands](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands).
+
+Why would you complement ESP32-EVSE with another ESP32 running ESPHome? You can extend its functionality independently, increasing flexibility:
+- make HMI/graphical UI rendered via LVGL, on an ESP32-based screen, with fully open source resources (no proprietary editor needed)
+- implement any custom authorization like RFiD readers etc.
+- multiple UARTs can be configured (eg one talking to `esp32-evse`, other talking to smart meter etc), make own Dynamic Load Management through HA or other ESPHome components (eg use data from other meters in various ways; freely implement DLM logic either in HA or in ESPHome)
+- can connect to Home Assistant via native API (or MQTT to other systems), can expose any register as a sensor or control to HA
+- can use free GPIOs or the display for anything else
+- has Bluetooth and with it you could pair with your car and implement additional related features (eg open charging flap automatically, poll battery status, temperature; garage door control etc, which wouldn't have to interfere with EVSE board at all)
+- the EVSE not having to deal with any of the above, can keep working independently as a mission critical piece of hardware
 
 ## Repository layout
 
@@ -13,16 +21,13 @@ It implements the communication with ESP32-EVSE using [AT Commands](https://gith
 
 ## Requirements
 
-Check out ESPHome [documentation](https://esphome.io/) to learn about the working 
-principle of the integration.
-Check out ESP32-EVSE [documentation]([https://esphome.io/](https://github.com/dzurikmiroslav/esp32-evse/wiki) to learn on how to use ESP32-EVSE
-
-You need an ESP32 board supported by ESPHome. The component communicates with ESP32-EVSE (min. version 2.0.0) via UART at 115200 baud rate. 
-Enter your ESP32-EVSE web UI and in _Settings_ > _Serial_, select for the UART port _Mode_: _AT Commands_ and _Baud rate_: _115200_ then press Submit. 
+You need an ESP32 board supported by ESPHome. The component communicates with ESP32-EVSE (min. version 2.0.0) via UART at 921600 baud rate. 
+Enter your ESP32-EVSE web UI and in _Settings_ > _Serial_, select for the UART port _Mode_: _AT Commands_. _Baud rate_: _921600_,  _Data bits_: _8_,  _Stop bits_: _1_, _Parity_: _Disable_. 
+Press Submit and reboot the evse from  _System_ > _Restart_.
 
 If you use the [esp32s2-evse-d-a board](https://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32-S2-DA) you can use a 4-pin cable with 2.5mm JST wired correctly for RX/TX/GND/5V:
 
-| ESP32-EVSE S2 DA U6 UART (1 leftmost looking from top, 2.5mm JST) |
+| ESP32-EVSE S2 DA U6 UART (2.5mm JST) |
 | -------- |
 | 1: GND |
 | 2: TX |
@@ -32,11 +37,22 @@ If you use the [esp32s2-evse-d-a board](https://github.com/dzurikmiroslav/esp32-
 Configure the UART as per ESPHome docs, and instantiate the EVSE component and link it to the configured UART bus.
 
 ```yaml
+uart:
+  id: evse_uart
+  tx_pin: GPIOXX
+  rx_pin: GPIOXX
+  baud_rate: 921600 
+  stop_bits: 1
+  parity: NONE
+
 esp32evse:
   id: evse
   uart_id: evse_uart
   update_interval: 60s # Optional: adjust how often the component polls the charger (10s–10min), defaults to 60s.
 ```
+
+Check out ESPHome [documentation](https://esphome.io/) to learn about the working principle of the system.
+Check out ESP32-EVSE [documentation]([https://esphome.io/](https://github.com/dzurikmiroslav/esp32-evse/wiki) to learn on how to configure and use ESP32-EVSE.
 
 ## Entities exposed
 
