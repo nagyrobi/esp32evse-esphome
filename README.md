@@ -35,8 +35,7 @@ Configure the UART as per ESPHome docs, and instantiate the EVSE component and l
 esp32evse:
   id: evse
   uart_id: evse_uart
-  # Optional: adjust how often the component polls the charger (10s–10min).
-  update_interval: 60s
+  update_interval: 60s # Optional: adjust how often the component polls the charger (10s–10min), defaults to 60s.
 ```
 
 ## Entities exposed
