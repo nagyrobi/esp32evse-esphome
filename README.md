@@ -205,17 +205,20 @@ text_sensor:
 - Adjust number ranges to match the electrical limits of your installation.
 - Remove sections you do not need to reduce resource usage on the device.
 
-### Using generic AT subscriptions from YAML
+## Auto-updating entities
 
-The component now exposes dedicated automation actions that wrap the `AT+SUB`
-and `AT+UNSUB` commands. They let you enable high-frequency updates without
-having to remember the raw AT command names. Check out the
+ESP32-EVSE allows is able to periodically push values without soliciting first. 
+
+The component exposes dedicated automation actions that wrap the `AT+SUB`
+and `AT+UNSUB` commands. Check out the
 [AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
 for details.
 
+Note Only works with read commands (not write, test or execute). When you multiple time subscribe same command, will only update period. AT commands task run in 100ms delay loop, period with lower value has no effect.
+
 To subscribe the ``emeter_power`` sensor to push updates every second (use any
 valid [ESPHome time](https://esphome.io/guides/configuration-types/#config-time)
-expression or a raw millisecond count):
+bigger than 100ms):
 
 ```yaml
     on_press:
@@ -237,10 +240,10 @@ shot (add ``esp32evse_id: <id>`` if you host multiple EVSE components):
       - esp32evse.unsubscribe_all:
 ```
 
-> **Note:** A few subscription actions control multiple sensors because the EVSE
-> reports them together. For example, ``esp32evse.temperature.subscribe`` drives
-> both ``temperature_high`` and ``temperature_low``, ``esp32evse.heap.subscribe``
-> updates ``heap_used`` and ``heap_total``, and the ``esp32evse.voltage`` and
-> ``esp32evse.current`` actions publish all phase-specific measurements.
+**Note:** A few subscription actions control multiple sensors because the EVSE
+reports them together. For example, ``esp32evse.temperature.subscribe`` drives
+both ``temperature_high`` and ``temperature_low``, ``esp32evse.heap.subscribe``
+updates ``heap_used`` and ``heap_total``, and the ``esp32evse.voltage.subscribe`` and
+``esp32evse.current.subscribe`` actions publish all phase-specific measurements.
 
 
