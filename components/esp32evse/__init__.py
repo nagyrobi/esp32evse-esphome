@@ -15,7 +15,7 @@ import esphome.config_validation as cv
 # The component communicates via UART, therefore we need to import and require
 # the UART helpers to bind the C++ object to ESPHome's UART subsystem.
 from esphome.components import uart
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 
 # Make sure UART gets compiled alongside our component because we depend on it
 # both at configuration time and at runtime on the microcontroller.
@@ -34,13 +34,34 @@ ESP32EVSEComponent = esp32evse_ns.class_(
 
 CONF_ESP32EVSE_ID = "esp32evse_id"
 
+MIN_UPDATE_INTERVAL_MS = 10_000
+MAX_UPDATE_INTERVAL_MS = 600_000
+
+
+def _clamp_update_interval(config):
+    """Ensure ``update_interval`` stays within the supported range."""
+
+    interval = config.get(CONF_UPDATE_INTERVAL)
+    if interval is None:
+        return config
+
+    total_ms = interval.total_milliseconds
+    if total_ms < MIN_UPDATE_INTERVAL_MS:
+        raise cv.Invalid("update_interval must be at least 10s")
+    if total_ms > MAX_UPDATE_INTERVAL_MS:
+        raise cv.Invalid("update_interval may not exceed 10min")
+    return config
+
+
 # Describe what options the YAML configuration block accepts.  We enforce that
 # a new C++ instance is created, that UART is configured with the required
-# arguments, and that the component polls every 60 seconds by default.
+# arguments, and that the component polls every 60 seconds by default while
+# allowing users to override the interval within the supported range.
 CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(ESP32EVSEComponent)})
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60000ms"))
+    .extend(cv.polling_component_schema("60000ms")),
+    _clamp_update_interval,
 )
 
 # Perform a final check after parsing so the build fails fast if the user
