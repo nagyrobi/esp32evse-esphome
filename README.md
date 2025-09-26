@@ -222,11 +222,11 @@ expression or a raw millisecond count):
       - esp32evse.emeter_power.subscribe: 1s
 ```
 
-Provide ``never`` to stop receiving updates for the same entity:
+Provide ``0`` to stop receiving updates for the same entity:
 
 ```yaml
     on_press:
-      - esp32evse.emeter_power.subscribe: never
+      - esp32evse.emeter_power.subscribe: 0
 ```
 
 And use ``esp32evse.unsubscribe_all`` to clear every active subscription in one
@@ -236,11 +236,5 @@ shot (add ``esp32evse_id: <id>`` if you host multiple EVSE components):
     on_press:
       - esp32evse.unsubscribe_all:
 ```
-
-> **Note:** A few subscription actions control multiple sensors because the EVSE
-> reports them together. For example, ``esp32evse.temperature.subscribe`` drives
-> both ``temperature_high`` and ``temperature_low``, ``esp32evse.heap.subscribe``
-> updates ``heap_used`` and ``heap_total``, and the ``esp32evse.voltage`` and
-> ``esp32evse.current`` actions publish all phase-specific measurements.
 
 
