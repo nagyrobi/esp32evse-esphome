@@ -364,9 +364,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   std::string read_buffer_;
   std::deque<PendingCommand> pending_commands_;
 
-  // Rotate through slow-changing queries so the periodic poll keeps latency low
-  // for the high-frequency telemetry sensors.
-  uint8_t slow_poll_group_{0};
   // Per-slot timestamps that power the freshness tracker.  A ``0`` entry means
   // the slot has never received a response and should not suppress polling yet.
   std::array<uint32_t, static_cast<size_t>(FreshnessSlot::SLOT_COUNT)> last_response_millis_{};
