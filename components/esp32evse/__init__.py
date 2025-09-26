@@ -8,7 +8,6 @@ why each block exists and how it fits within ESPHome's build pipeline.
 
 # Bring in the ESPHome code generation helpers so we can describe the C++ class
 # hierarchy that backs the component at compile time.
-import esphome.automation as automation
 import esphome.codegen as cg
 # Provide validation utilities to make sure user supplied YAML configuration is
 # structurally correct before we attempt to generate any C++ code.
@@ -26,17 +25,6 @@ DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@nagyrobi"]
 
 esp32evse_ns = cg.esphome_ns.namespace("esp32evse")
-# Automation helpers exposed by this integration.
-ESP32EVSEManagedSubscriptionAction = esp32evse_ns.class_(
-    "ESP32EVSEManagedSubscriptionAction",
-    automation.Action,
-    cg.Parented.template(ESP32EVSEComponent),
-)
-ESP32EVSEUnsubscribeAllAction = esp32evse_ns.class_(
-    "ESP32EVSEUnsubscribeAllAction",
-    automation.Action,
-    cg.Parented.template(ESP32EVSEComponent),
-)
 # Declare the C++ class that implements the logic.  It inherits from
 # ``PollingComponent`` so ESPHome regularly calls ``update`` and from
 # ``UARTDevice`` so it can talk to the EVSE controller over serial.
@@ -48,44 +36,6 @@ CONF_ESP32EVSE_ID = "esp32evse_id"
 
 MIN_UPDATE_INTERVAL_MS = 10_000
 MAX_UPDATE_INTERVAL_MS = 600_000
-
-CONF_PERIOD = "period"
-
-_REGISTERED_COMPONENT_IDS: list[cg.ID] = []
-
-
-def _normalize_subscription_period(value):
-    """Accept integers (milliseconds) or config-time durations."""
-
-    if isinstance(value, cv.Lambda):
-        return value
-    if isinstance(value, cv.TimePeriod):
-        return value
-    if isinstance(value, int):
-        value = cv.uint32_t(value)
-        return cv.TimePeriod(milliseconds=value)
-    if isinstance(value, float):
-        raise cv.Invalid("period must be specified as whole milliseconds")
-    return cv.positive_time_period_milliseconds(value)
-
-
-def _resolve_parent_id(config):
-    component_id = config.get(CONF_ESP32EVSE_ID)
-    if component_id is not None:
-        return component_id
-    if len(_REGISTERED_COMPONENT_IDS) == 1:
-        return _REGISTERED_COMPONENT_IDS[0]
-    raise cv.Invalid(
-        "esp32evse_id must be specified when multiple ESP32 EVSE components are configured"
-    )
-
-
-def _validate_unsubscribe_all_config(value):
-    if value is None:
-        value = {}
-    elif not isinstance(value, dict):
-        value = {CONF_ESP32EVSE_ID: value}
-    return cv.Schema({cv.Optional(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent)})(value)
 
 
 def _clamp_update_interval(config):
@@ -137,99 +87,3 @@ async def to_code(config):
     # Finally, bind the component to the configured UART bus so serial
     # communication with the EVSE controller is possible.
     await uart.register_uart_device(var, config)
-    if config[CONF_ID] not in _REGISTERED_COMPONENT_IDS:
-        _REGISTERED_COMPONENT_IDS.append(config[CONF_ID])
-
-
-_SUBSCRIPTION_TARGETS = {
-    # Text sensors
-    "state": '"+STATE"',
-    "chip": '"+CHIP"',
-    "version": '"+VER"',
-    "idf_version": '"+IDFVER"',
-    "build_time": '"+BUILDTIME"',
-    "device_time": '"+TIME"',
-    "wifi_sta_ssid": '"+WIFISTACFG"',
-    "wifi_sta_ip": '"+WIFISTAIP"',
-    "wifi_sta_mac": '"+WIFISTAMAC"',
-    "device_name": '"+DEVNAME"',
-    # Switches
-    "enable": '"+ENABLE"',
-    "available": '"+AVAILABLE"',
-    "request_authorization": '"+REQAUTH"',
-    # Sensors
-    "temperature": '"+TEMP"',
-    "temperature_high": '"+TEMP"',
-    "temperature_low": '"+TEMP"',
-    "emeter_power": '"+EMETERPOWER"',
-    "emeter_session_time": '"+EMETERSESTIME"',
-    "emeter_charging_time": '"+EMETERCHTIME"',
-    "heap_used": '"+HEAP"',
-    "heap_total": '"+HEAP"',
-    "energy_consumption": '"+EMETERCONSUM"',
-    "total_energy_consumption": '"+EMETERTOTCONSUM"',
-    "voltage_l1": '"+EMETERVOLTAGE"',
-    "voltage_l2": '"+EMETERVOLTAGE"',
-    "voltage_l3": '"+EMETERVOLTAGE"',
-    "current_l1": '"+EMETERCURRENT"',
-    "current_l2": '"+EMETERCURRENT"',
-    "current_l3": '"+EMETERCURRENT"',
-    "wifi_rssi": '"+WIFISTACONN"',
-    # Binary sensors
-    "pending_authorization": '"+PENDAUTH"',
-    "wifi_connected": '"+WIFISTACONN"',
-    # Numbers
-    "charging_current": '"+CHCUR"',
-    "default_charging_current": '"+DEFCHCUR"',
-    "maximum_charging_current": '"+MAXCHCUR"',
-    "consumption_limit": '"+CONSUMLIM"',
-    "default_consumption_limit": '"+DEFCONSUMLIM"',
-    "charging_time_limit": '"+CHTIMELIM"',
-    "default_charging_time_limit": '"+DEFCHTIMELIM"',
-    "under_power_limit": '"+UNDERPOWERLIM"',
-    "default_under_power_limit": '"+DEFUNDERPOWERLIM"',
-}
-
-_SUBSCRIPTION_SCHEMA = automation.maybe_conf(
-    CONF_PERIOD,
-    cv.Schema(
-        {
-            cv.Optional(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
-            cv.Required(CONF_PERIOD): cv.templatable(_normalize_subscription_period),
-        }
-    ),
-)
-
-
-def _register_subscription_action(name: str, command: str) -> None:
-    """Expose an ``esp32evse.<entity>.subscribe`` automation action."""
-
-    @automation.register_action(
-        f"esp32evse.{name}.subscribe",
-        ESP32EVSEManagedSubscriptionAction,
-        _SUBSCRIPTION_SCHEMA,
-    )
-    async def subscription_action_to_code(config, action_id, template_arg, args, *, _command=command):
-        component_id = _resolve_parent_id(config)
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, component_id)
-        cg.add(var.set_command(_command))
-        period = await cg.templatable(config[CONF_PERIOD], args, cg.uint32)
-        cg.add(var.set_period(period))
-        return var
-
-
-for _name, _command in _SUBSCRIPTION_TARGETS.items():
-    _register_subscription_action(_name, _command)
-
-
-@automation.register_action(
-    "esp32evse.unsubscribe_all",
-    ESP32EVSEUnsubscribeAllAction,
-    _validate_unsubscribe_all_config,
-)
-async def unsubscribe_all_to_code(config, action_id, template_arg, args):
-    component_id = _resolve_parent_id(config)
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, component_id)
-    return var
