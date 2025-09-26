@@ -540,14 +540,14 @@ void ESP32EVSEComponent::at_sub(const std::string &command, uint32_t period_ms) 
              command.c_str());
     return;
   }
-  ESP_LOGW(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
+  ESP_LOGD(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
   std::string cmd = "AT+SUB=" + command + "," + std::to_string(period_ms);
   this->send_command_(cmd);
 }
 
 void ESP32EVSEComponent::at_unsub(const std::string &command) {
   if (command.empty()) {
-    ESP_LOGW(TAG, "Sending AT+UNSUB with empty command parameter");
+    ESP_LOGD(TAG, "Sending AT+UNSUB with empty command parameter");
     this->send_command_("AT+UNSUB=\"\"");
     return;
   }
@@ -559,7 +559,7 @@ void ESP32EVSEComponent::at_unsub(const std::string &command) {
     return;
   }
 
-  ESP_LOGW(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
+  ESP_LOGD(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
   std::string cmd = "AT+UNSUB=" + command;
   this->send_command_(cmd);
 }
