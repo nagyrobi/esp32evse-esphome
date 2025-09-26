@@ -54,19 +54,43 @@ CONF_PERIOD = "period"
 _REGISTERED_COMPONENT_IDS = []
 
 
+class _NeverSubscriptionPeriod:
+    """Sentinel object returned when the user specifies ``never``."""
+
+    is_never = True
+    total_milliseconds = 0
+
+
+_NEVER_SUBSCRIPTION_PERIOD = _NeverSubscriptionPeriod()
+
+
 def _normalize_subscription_period(value):
     """Accept integers (milliseconds) or config-time durations."""
 
     if isinstance(value, cv.Lambda):
         return value
     if isinstance(value, cv.TimePeriod):
+        if getattr(value, "is_never", False):
+            return value
+        total_ms = getattr(value, "total_milliseconds", None)
+        if total_ms == 0:
+            raise cv.Invalid("period must be greater than 0; use 'never' to unsubscribe")
         return value
+    if isinstance(value, str) and value.strip().lower() == "never":
+        return _NEVER_SUBSCRIPTION_PERIOD
     if isinstance(value, int):
         value = cv.uint32_t(value)
+        if value == 0:
+            raise cv.Invalid("period must be greater than 0; use 'never' to unsubscribe")
         return cv.TimePeriod(milliseconds=value)
     if isinstance(value, float):
         raise cv.Invalid("period must be specified as whole milliseconds")
-    return cv.positive_time_period_milliseconds(value)
+    period = cv.positive_time_period_milliseconds(value)
+    if isinstance(period, cv.TimePeriod):
+        total_ms = getattr(period, "total_milliseconds", None)
+        if total_ms == 0 and not getattr(period, "is_never", False):
+            raise cv.Invalid("period must be greater than 0; use 'never' to unsubscribe")
+    return period
 
 
 def _resolve_parent_id(config):
@@ -159,21 +183,14 @@ _SUBSCRIPTION_TARGETS = {
     "request_authorization": '"+REQAUTH"',
     # Sensors
     "temperature": '"+TEMP"',
-    "temperature_high": '"+TEMP"',
-    "temperature_low": '"+TEMP"',
     "emeter_power": '"+EMETERPOWER"',
     "emeter_session_time": '"+EMETERSESTIME"',
     "emeter_charging_time": '"+EMETERCHTIME"',
-    "heap_used": '"+HEAP"',
-    "heap_total": '"+HEAP"',
+    "heap": '"+HEAP"',
     "energy_consumption": '"+EMETERCONSUM"',
     "total_energy_consumption": '"+EMETERTOTCONSUM"',
-    "voltage_l1": '"+EMETERVOLTAGE"',
-    "voltage_l2": '"+EMETERVOLTAGE"',
-    "voltage_l3": '"+EMETERVOLTAGE"',
-    "current_l1": '"+EMETERCURRENT"',
-    "current_l2": '"+EMETERCURRENT"',
-    "current_l3": '"+EMETERCURRENT"',
+    "voltage": '"+EMETERVOLTAGE"',
+    "current": '"+EMETERCURRENT"',
     "wifi_rssi": '"+WIFISTACONN"',
     # Binary sensors
     "pending_authorization": '"+PENDAUTH"',
@@ -215,8 +232,13 @@ def _register_subscription_action(name: str, command: str) -> None:
         await cg.register_parented(var, component_id)
         cg.add(var.set_command(_command))
         period_config = config[CONF_PERIOD]
-        if isinstance(period_config, cv.TimePeriod):
-            period = cg.uint32(period_config.total_milliseconds)
+        if period_config is _NEVER_SUBSCRIPTION_PERIOD:
+            period = cg.uint32(0)
+        elif isinstance(period_config, cv.TimePeriod):
+            if getattr(period_config, "is_never", False):
+                period = cg.uint32(0)
+            else:
+                period = cg.uint32(period_config.total_milliseconds)
         else:
             period = await cg.templatable(period_config, args, cg.uint32)
         cg.add(var.set_period(period))
