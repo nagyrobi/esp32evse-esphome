@@ -10,7 +10,6 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -33,9 +32,6 @@ class ESP32EVSEResetButton;
 class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
-
-class ESP32EVSEManagedSubscriptionAction;
-class ESP32EVSEUnsubscribeAllAction;
 
 // Main component class that orchestrates communication with the EVSE controller
 // and fans out the resulting state to the various ESPHome entities registered
@@ -422,41 +418,6 @@ class ESP32EVSEPendingAuthorizationBinarySensor
 
 class ESP32EVSEWifiConnectedBinarySensor : public binary_sensor::BinarySensor,
                                            public Parented<ESP32EVSEComponent> {};
-
-template<typename... Ts>
-class ESP32EVSEManagedSubscriptionAction : public Action<Ts...> {
- public:
-  explicit ESP32EVSEManagedSubscriptionAction(ESP32EVSEComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(uint32_t, period)
-
-  void set_command(const std::string &command) { command_ = command; }
-
-  void play(Ts... x) {
-    if (command_.empty())
-      return;
-    uint32_t period = this->period_.value(x...);
-    if (period == 0) {
-      this->parent_->at_unsub(command_);
-    } else {
-      this->parent_->at_sub(command_, period);
-    }
-  }
-
- protected:
-  ESP32EVSEComponent *parent_;
-  std::string command_;
-};
-
-template<typename... Ts>
-class ESP32EVSEUnsubscribeAllAction : public Action<Ts...> {
- public:
-  explicit ESP32EVSEUnsubscribeAllAction(ESP32EVSEComponent *parent) : parent_(parent) {}
-
-  void play(Ts... x) { this->parent_->at_unsub(); }
-
- protected:
-  ESP32EVSEComponent *parent_;
-};
 
 }  // namespace esp32evse
 }  // namespace esphome
