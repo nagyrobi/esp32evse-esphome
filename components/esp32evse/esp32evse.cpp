@@ -305,77 +305,59 @@ void ESP32EVSEComponent::update() {
       !this->should_skip_poll_(FreshnessSlot::REQUEST_AUTHORIZATION))
     this->request_request_authorization_update();
 
-  // Spread slow-changing parameters across successive polls so the command
-  // queue stays short and the dynamic sensors finish publishing sooner.
-  switch (this->slow_poll_group_) {
-    case 0:
-      if (this->default_charging_current_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_CURRENT))
-        this->request_default_charging_current_update();
-      if (this->maximum_charging_current_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT))
-        this->request_maximum_charging_current_update();
-      break;
-    case 1:
-      if (this->consumption_limit_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::CONSUMPTION_LIMIT))
-        this->request_consumption_limit_update();
-      if (this->default_consumption_limit_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT))
-        this->request_default_consumption_limit_update();
-      break;
-    case 2:
-      if (this->charging_time_limit_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::CHARGING_TIME_LIMIT))
-        this->request_charging_time_limit_update();
-      if (this->default_charging_time_limit_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT))
-        this->request_default_charging_time_limit_update();
-      break;
-    case 3:
-      if (this->under_power_limit_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::UNDER_POWER_LIMIT))
-        this->request_under_power_limit_update();
-      if (this->default_under_power_limit_number_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT))
-        this->request_default_under_power_limit_update();
-      break;
-    case 4:
-      if (this->wifi_sta_ssid_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::WIFI_STA_CFG))
-        this->request_wifi_sta_cfg_update();
-      if (this->wifi_sta_ip_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::WIFI_STA_IP))
-        this->request_wifi_sta_ip_update();
-      break;
-    case 5:
-      if (this->wifi_sta_mac_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::WIFI_STA_MAC))
-        this->request_wifi_sta_mac_update();
-      if (this->device_name_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::DEVICE_NAME))
-        this->request_device_name_update();
-      break;
-    case 6:
-      if (this->chip_text_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::CHIP))
-        this->request_chip_update();
-      if (this->version_text_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::VERSION))
-        this->request_version_update();
-      if (this->idf_version_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::IDF_VERSION))
-        this->request_idf_version_update();
-      break;
-    default:
-      if (this->build_time_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::BUILD_TIME))
-        this->request_build_time_update();
-      if (this->device_time_text_sensor_ != nullptr &&
-          !this->should_skip_poll_(FreshnessSlot::DEVICE_TIME))
-        this->request_device_time_update();
-      break;
-  }
-
-  this->slow_poll_group_ = (this->slow_poll_group_ + 1) % 8;
+  // Slow-changing parameters are also requested every poll.  The
+  // ``should_skip_poll_`` guard prevents redundant commands when a subscription
+  // delivered fresher data moments earlier.
+  if (this->default_charging_current_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_CURRENT))
+    this->request_default_charging_current_update();
+  if (this->maximum_charging_current_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT))
+    this->request_maximum_charging_current_update();
+  if (this->consumption_limit_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::CONSUMPTION_LIMIT))
+    this->request_consumption_limit_update();
+  if (this->default_consumption_limit_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT))
+    this->request_default_consumption_limit_update();
+  if (this->charging_time_limit_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::CHARGING_TIME_LIMIT))
+    this->request_charging_time_limit_update();
+  if (this->default_charging_time_limit_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT))
+    this->request_default_charging_time_limit_update();
+  if (this->under_power_limit_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::UNDER_POWER_LIMIT))
+    this->request_under_power_limit_update();
+  if (this->default_under_power_limit_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT))
+    this->request_default_under_power_limit_update();
+  if (this->wifi_sta_ssid_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::WIFI_STA_CFG))
+    this->request_wifi_sta_cfg_update();
+  if (this->wifi_sta_ip_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::WIFI_STA_IP))
+    this->request_wifi_sta_ip_update();
+  if (this->wifi_sta_mac_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::WIFI_STA_MAC))
+    this->request_wifi_sta_mac_update();
+  if (this->device_name_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::DEVICE_NAME))
+    this->request_device_name_update();
+  if (this->chip_text_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::CHIP))
+    this->request_chip_update();
+  if (this->version_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::VERSION))
+    this->request_version_update();
+  if (this->idf_version_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::IDF_VERSION))
+    this->request_idf_version_update();
+  if (this->build_time_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::BUILD_TIME))
+    this->request_build_time_update();
+  if (this->device_time_text_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::DEVICE_TIME))
+    this->request_device_time_update();
 }
 
 // Emit human readable configuration details in the ESPHome logs.
