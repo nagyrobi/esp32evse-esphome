@@ -214,11 +214,9 @@ and `AT+UNSUB` commands. Check out the
 [AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
 for details.
 
-Note Only works with read commands (not write, test or execute). When you multiple time subscribe same command, will only update period. AT commands task run in 100ms delay loop, period with lower value has no effect.
-
 To subscribe the ``emeter_power`` sensor to push updates every second (use any
 valid [ESPHome time](https://esphome.io/guides/configuration-types/#config-time)
-bigger than 100ms):
+bigger than ``100ms``):
 
 ```yaml
     on_press:
