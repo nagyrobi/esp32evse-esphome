@@ -207,33 +207,32 @@ text_sensor:
 
 ### Using generic AT subscriptions from YAML
 
-The component exposes helper methods so you can trigger `AT+SUB` / `AT+UNSUB`
-commands directly from ESPHome lambdas. This allows custom subscriptions beyond
-ESPHome's built-in update period. Check out the [AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
+The component now exposes dedicated automation actions that wrap the `AT+SUB`
+and `AT+UNSUB` commands. They let you enable high-frequency updates without
+having to remember the raw AT command names. Check out the
+[AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
 for details.
 
-In the example below, we enable autoupdate of the ``emeter_power`` entity every 1000ms, pushed from the EVSE:
+To subscribe the ``emeter_power`` sensor to 1000 ms push updates:
 
 ```yaml
     on_press:
-      - lambda: |-
-          id(evse).at_sub("\"+EMETERPOWER\"", 1000);
+      - esp32evse.emeter_power.subscribe: 1000
 ```
 
-Here we disable it:
+Provide ``0`` to stop receiving updates for the same entity:
 
 ```yaml
     on_press:
-      - lambda: |-
-          id(evse).at_unsub("\"+EMETERPOWER\"");
+      - esp32evse.emeter_power.subscribe: 0
 ```
 
-Passing an empty string to `at_unsub()` sends `AT+UNSUB=""` which clears all active subscriptions for all entities:
+And use ``esp32evse.unsubscribe_all`` to clear every active subscription in one
+shot:
 
 ```yaml
     on_press:
-      - lambda: |-
-          id(evse).at_unsub("");
+      - esp32evse.unsubscribe_all:
 ```
 
 
