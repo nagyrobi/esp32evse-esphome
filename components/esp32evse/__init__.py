@@ -117,6 +117,13 @@ def _clamp_update_interval(config):
     return config
 
 
+def _register_component_config(config):
+    component_id = config[CONF_ID]
+    if component_id not in _REGISTERED_COMPONENT_IDS:
+        _REGISTERED_COMPONENT_IDS.append(component_id)
+    return config
+
+
 # Describe what options the YAML configuration block accepts.  We enforce that
 # a new C++ instance is created, that UART is configured with the required
 # arguments, and that the component polls every 60 seconds by default while
@@ -125,6 +132,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(ESP32EVSEComponent)})
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("60000ms")),
+    _register_component_config,
     _clamp_update_interval,
 )
 
