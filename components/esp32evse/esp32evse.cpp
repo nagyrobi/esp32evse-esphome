@@ -25,6 +25,10 @@ static const char *const TAG = "esp32evse";
 
 namespace {
 
+constexpr uint32_t kDefaultUpdateIntervalMs = 60'000;
+constexpr uint32_t kMinUpdateIntervalMs = 10'000;
+constexpr uint32_t kMaxUpdateIntervalMs = 600'000;
+
 // Utility: return a pointer to the substring that follows ``prefix`` if the
 // incoming UART line starts with it.  Many EVSE responses follow a predictable
 // ``KEY=VALUE`` structure, so this helper keeps the parsing code terse.
@@ -213,56 +217,165 @@ void ESP32EVSEComponent::loop() {
   }
 }
 
-// Periodic refresh triggered by ``PollingComponent`` every 60 seconds.
-void ESP32EVSEComponent::update() {
-  this->request_state_update();
-  this->request_enable_update();
-  this->request_pending_authorization_update();
+// Remember when the EVSE last answered a query.  Fresh slots allow the periodic
+// updater to skip issuing another AT command when subscription data already
+// delivered a recent value.
+void ESP32EVSEComponent::mark_response_received_(FreshnessSlot slot) {
+  size_t index = static_cast<size_t>(slot);
+  if (index >= this->last_response_millis_.size())
+    return;
+  this->last_response_millis_[index] = millis();
+}
 
-  if (this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr)
+// Return ``true`` when the most recent response in ``slot`` is still within the
+// freshness window (half of the configured polling interval).  Callers can then
+// skip sending duplicate commands and keep the UART queue short for sensors that
+// require a full round trip.
+bool ESP32EVSEComponent::should_skip_poll_(FreshnessSlot slot) const {
+  size_t index = static_cast<size_t>(slot);
+  if (index >= this->last_response_millis_.size())
+    return false;
+  uint32_t last = this->last_response_millis_[index];
+  if (last == 0)
+    return false;
+  uint32_t interval = this->get_update_interval();
+  if (interval == 0)
+    interval = kDefaultUpdateIntervalMs;
+  if (interval < kMinUpdateIntervalMs)
+    interval = kMinUpdateIntervalMs;
+  if (interval > kMaxUpdateIntervalMs)
+    interval = kMaxUpdateIntervalMs;
+  uint32_t freshness_window = interval / 2;
+  if (freshness_window == 0)
+    freshness_window = 1;
+  uint32_t now_ms = millis();
+  uint32_t elapsed = now_ms - last;
+  return elapsed < freshness_window;
+}
+
+// Periodic refresh triggered by ``PollingComponent`` (60 seconds by default,
+// configurable via ``update_interval``).  Each request checks
+// ``should_skip_poll_`` so freshly updated subscription-backed sensors avoid
+// redundant AT commands.
+void ESP32EVSEComponent::update() {
+  if (!this->should_skip_poll_(FreshnessSlot::STATE))
+    this->request_state_update();
+  if (!this->should_skip_poll_(FreshnessSlot::ENABLE))
+    this->request_enable_update();
+  if (!this->should_skip_poll_(FreshnessSlot::PENDING_AUTHORIZATION))
+    this->request_pending_authorization_update();
+
+  if ((this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr) &&
+      !this->should_skip_poll_(FreshnessSlot::TEMPERATURE))
     this->request_temperature_update();
-  if (this->charging_current_number_ != nullptr)
+  if (this->charging_current_number_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::CHARGING_CURRENT))
     this->request_charging_current_update();
-  if (this->emeter_power_sensor_ != nullptr)
+  if (this->emeter_power_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::EMETER_POWER))
     this->request_emeter_power_update();
-  if (this->emeter_session_time_sensor_ != nullptr)
+  if (this->emeter_session_time_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::EMETER_SESSION_TIME))
     this->request_emeter_session_time_update();
-  if (this->emeter_charging_time_sensor_ != nullptr)
+  if (this->emeter_charging_time_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::EMETER_CHARGING_TIME))
     this->request_emeter_charging_time_update();
-  if (this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr)
+  if ((this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr) &&
+      !this->should_skip_poll_(FreshnessSlot::HEAP))
     this->request_heap_update();
-  if (this->energy_consumption_sensor_ != nullptr)
+  if (this->energy_consumption_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::ENERGY_CONSUMPTION))
     this->request_energy_consumption_update();
-  if (this->total_energy_consumption_sensor_ != nullptr)
+  if (this->total_energy_consumption_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::TOTAL_ENERGY_CONSUMPTION))
     this->request_total_energy_consumption_update();
-  if (this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
-      this->voltage_l3_sensor_ != nullptr)
+  if ((this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
+       this->voltage_l3_sensor_ != nullptr) &&
+      !this->should_skip_poll_(FreshnessSlot::VOLTAGE))
     this->request_voltage_update();
-  if (this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
-      this->current_l3_sensor_ != nullptr)
+  if ((this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
+       this->current_l3_sensor_ != nullptr) &&
+      !this->should_skip_poll_(FreshnessSlot::CURRENT))
     this->request_current_update();
-  if (this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr)
+  if ((this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr) &&
+      !this->should_skip_poll_(FreshnessSlot::WIFI_STATUS))
     this->request_wifi_status_update();
-  if (this->available_switch_ != nullptr)
+  if (this->available_switch_ != nullptr && !this->should_skip_poll_(FreshnessSlot::AVAILABLE))
     this->request_available_update();
-  if (this->request_authorization_switch_ != nullptr)
+  if (this->request_authorization_switch_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::REQUEST_AUTHORIZATION))
     this->request_request_authorization_update();
-  if (this->default_charging_current_number_ != nullptr)
-    this->request_default_charging_current_update();
-  if (this->maximum_charging_current_number_ != nullptr)
-    this->request_maximum_charging_current_update();
-  if (this->consumption_limit_number_ != nullptr)
-    this->request_consumption_limit_update();
-  if (this->default_consumption_limit_number_ != nullptr)
-    this->request_default_consumption_limit_update();
-  if (this->charging_time_limit_number_ != nullptr)
-    this->request_charging_time_limit_update();
-  if (this->default_charging_time_limit_number_ != nullptr)
-    this->request_default_charging_time_limit_update();
-  if (this->under_power_limit_number_ != nullptr)
-    this->request_under_power_limit_update();
-  if (this->default_under_power_limit_number_ != nullptr)
-    this->request_default_under_power_limit_update();
+
+  // Spread slow-changing parameters across successive polls so the command
+  // queue stays short and the dynamic sensors finish publishing sooner.
+  switch (this->slow_poll_group_) {
+    case 0:
+      if (this->default_charging_current_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_CURRENT))
+        this->request_default_charging_current_update();
+      if (this->maximum_charging_current_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT))
+        this->request_maximum_charging_current_update();
+      break;
+    case 1:
+      if (this->consumption_limit_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::CONSUMPTION_LIMIT))
+        this->request_consumption_limit_update();
+      if (this->default_consumption_limit_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT))
+        this->request_default_consumption_limit_update();
+      break;
+    case 2:
+      if (this->charging_time_limit_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::CHARGING_TIME_LIMIT))
+        this->request_charging_time_limit_update();
+      if (this->default_charging_time_limit_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT))
+        this->request_default_charging_time_limit_update();
+      break;
+    case 3:
+      if (this->under_power_limit_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::UNDER_POWER_LIMIT))
+        this->request_under_power_limit_update();
+      if (this->default_under_power_limit_number_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT))
+        this->request_default_under_power_limit_update();
+      break;
+    case 4:
+      if (this->wifi_sta_ssid_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::WIFI_STA_CFG))
+        this->request_wifi_sta_cfg_update();
+      if (this->wifi_sta_ip_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::WIFI_STA_IP))
+        this->request_wifi_sta_ip_update();
+      break;
+    case 5:
+      if (this->wifi_sta_mac_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::WIFI_STA_MAC))
+        this->request_wifi_sta_mac_update();
+      if (this->device_name_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::DEVICE_NAME))
+        this->request_device_name_update();
+      break;
+    case 6:
+      if (this->chip_text_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::CHIP))
+        this->request_chip_update();
+      if (this->version_text_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::VERSION))
+        this->request_version_update();
+      if (this->idf_version_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::IDF_VERSION))
+        this->request_idf_version_update();
+      break;
+    default:
+      if (this->build_time_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::BUILD_TIME))
+        this->request_build_time_update();
+      if (this->device_time_text_sensor_ != nullptr &&
+          !this->should_skip_poll_(FreshnessSlot::DEVICE_TIME))
+        this->request_device_time_update();
+      break;
+  }
+
+  this->slow_poll_group_ = (this->slow_poll_group_ + 1) % 8;
 }
 
 // Emit human readable configuration details in the ESPHome logs.
@@ -281,6 +394,15 @@ void ESP32EVSEComponent::dump_config() {
   } else {
     ESP_LOGW(TAG, "  No UART parent configured");
   }
+
+  uint32_t interval = this->get_update_interval();
+  if (interval == 0)
+    interval = kDefaultUpdateIntervalMs;
+  if (interval < kMinUpdateIntervalMs)
+    interval = kMinUpdateIntervalMs;
+  if (interval > kMaxUpdateIntervalMs)
+    interval = kMaxUpdateIntervalMs;
+  ESP_LOGCONFIG(TAG, "  Update Interval: %u ms (%.1f s)", interval, interval / 1000.0f);
 }
 
 // Thin wrappers that enqueue the corresponding AT command.  Keeping them in one
@@ -648,6 +770,11 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     float l2 = NAN;
     float l3 = NAN;
     if (sscanf(value, "%f,%f,%f", &l1, &l2, &l3) == 3) {
+      // The EVSE reports the three phase voltages in a single response.  That
+      // holds both for polled replies (``AT+EMETERVOLTAGE?``) and for
+      // subscription streams started with ``AT+SUB`` where the controller
+      // pushes updates on its own, so all three entities are published
+      // back-to-back from the same UART line.
       this->update_voltages_(l1, l2, l3);
     }
     return;
@@ -657,6 +784,10 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     float l2 = NAN;
     float l3 = NAN;
     if (sscanf(value, "%f,%f,%f", &l1, &l2, &l3) == 3) {
+      // Similarly for the phase currents: whether they arrive as a response to
+      // ``AT+EMETERCURRENT?`` or as part of a subscription stream, the EVSE
+      // delivers the three measurements together, so their publish timestamps
+      // only differ by the bookkeeping time inside this callback.
       this->update_currents_(l1, l2, l3);
     }
     return;
@@ -755,6 +886,7 @@ void ESP32EVSEComponent::process_next_command_() {
 
 // Publish EVSE state machine codes (A/B/C/etc.) to the bound text sensor.
 void ESP32EVSEComponent::update_state_(uint8_t state) {
+  this->mark_response_received_(FreshnessSlot::STATE);
   static const char *const STATE_NAMES[] = {"A", "B1", "B2", "C1", "C2", "D1", "D2", "E", "F"};
   const char *state_name = "UNKNOWN";
   if (state < sizeof(STATE_NAMES) / sizeof(STATE_NAMES[0])) {
@@ -765,6 +897,7 @@ void ESP32EVSEComponent::update_state_(uint8_t state) {
 
 // Mirror EVSE flags back into ESPHome entities.
 void ESP32EVSEComponent::update_enable_(bool enable) {
+  this->mark_response_received_(FreshnessSlot::ENABLE);
   if (this->enable_switch_ != nullptr) {
     this->enable_switch_->publish_state(enable);
   }
@@ -773,6 +906,7 @@ void ESP32EVSEComponent::update_enable_(bool enable) {
 // Publish the EVSE's reported temperature extremes.  Values are sent in
 // centi-degrees, so we convert to Celsius before forwarding them.
 void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t low) {
+  this->mark_response_received_(FreshnessSlot::TEMPERATURE);
   if (this->temperature_high_sensor_ == nullptr && this->temperature_low_sensor_ == nullptr)
     return;
   if (count <= 0) {
@@ -815,40 +949,48 @@ void ESP32EVSEComponent::publish_text_sensor_state_(text_sensor::TextSensor *sen
 }
 
 void ESP32EVSEComponent::update_charging_current_(uint16_t value_tenths) {
+  this->mark_response_received_(FreshnessSlot::CHARGING_CURRENT);
   this->publish_scaled_number_(this->charging_current_number_, value_tenths);
 }
 
 void ESP32EVSEComponent::update_emeter_power_(uint32_t power_w) {
+  this->mark_response_received_(FreshnessSlot::EMETER_POWER);
   if (this->emeter_power_sensor_ != nullptr) {
     this->emeter_power_sensor_->publish_state(power_w);
   }
 }
 
 void ESP32EVSEComponent::update_emeter_session_time_(uint32_t time_s) {
+  this->mark_response_received_(FreshnessSlot::EMETER_SESSION_TIME);
   if (this->emeter_session_time_sensor_ != nullptr) {
     this->emeter_session_time_sensor_->publish_state(time_s);
   }
 }
 
 void ESP32EVSEComponent::update_emeter_charging_time_(uint32_t time_s) {
+  this->mark_response_received_(FreshnessSlot::EMETER_CHARGING_TIME);
   if (this->emeter_charging_time_sensor_ != nullptr) {
     this->emeter_charging_time_sensor_->publish_state(time_s);
   }
 }
 
 void ESP32EVSEComponent::update_chip_(const std::string &chip) {
+  this->mark_response_received_(FreshnessSlot::CHIP);
   this->publish_text_sensor_state_(this->chip_text_sensor_, chip);
 }
 
 void ESP32EVSEComponent::update_version_(const std::string &version) {
+  this->mark_response_received_(FreshnessSlot::VERSION);
   this->publish_text_sensor_state_(this->version_text_sensor_, version);
 }
 
 void ESP32EVSEComponent::update_idf_version_(const std::string &idf_version) {
+  this->mark_response_received_(FreshnessSlot::IDF_VERSION);
   this->publish_text_sensor_state_(this->idf_version_text_sensor_, idf_version);
 }
 
 void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
+  this->mark_response_received_(FreshnessSlot::BUILD_TIME);
   if (this->build_time_text_sensor_ == nullptr)
     return;
   std::string sanitized = build_time;
@@ -860,6 +1002,7 @@ void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
 }
 
 void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
+  this->mark_response_received_(FreshnessSlot::DEVICE_TIME);
   if (this->device_time_text_sensor_ == nullptr)
     return;
   time_t raw_time = static_cast<time_t>(timestamp);
@@ -877,28 +1020,34 @@ void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
 }
 
 void ESP32EVSEComponent::update_wifi_sta_cfg_(const std::string &ssid) {
+  this->mark_response_received_(FreshnessSlot::WIFI_STA_CFG);
   this->publish_text_sensor_state_(this->wifi_sta_ssid_text_sensor_, ssid);
 }
 
 void ESP32EVSEComponent::update_wifi_sta_ip_(const std::string &ip) {
+  this->mark_response_received_(FreshnessSlot::WIFI_STA_IP);
   this->publish_text_sensor_state_(this->wifi_sta_ip_text_sensor_, ip);
 }
 
 void ESP32EVSEComponent::update_wifi_sta_mac_(const std::string &mac) {
+  this->mark_response_received_(FreshnessSlot::WIFI_STA_MAC);
   this->publish_text_sensor_state_(this->wifi_sta_mac_text_sensor_, mac);
 }
 
 void ESP32EVSEComponent::update_device_name_(const std::string &name) {
+  this->mark_response_received_(FreshnessSlot::DEVICE_NAME);
   this->publish_text_sensor_state_(this->device_name_text_sensor_, name);
 }
 
 void ESP32EVSEComponent::update_available_(bool available) {
+  this->mark_response_received_(FreshnessSlot::AVAILABLE);
   if (this->available_switch_ != nullptr) {
     this->available_switch_->publish_state(available);
   }
 }
 
 void ESP32EVSEComponent::update_request_authorization_(bool request) {
+  this->mark_response_received_(FreshnessSlot::REQUEST_AUTHORIZATION);
   if (this->request_authorization_switch_ != nullptr) {
     this->request_authorization_switch_->publish_state(request);
   }
@@ -906,6 +1055,7 @@ void ESP32EVSEComponent::update_request_authorization_(bool request) {
 
 void ESP32EVSEComponent::update_heap_(std::optional<uint32_t> heap_used_bytes,
                                       std::optional<uint32_t> heap_total_bytes) {
+  this->mark_response_received_(FreshnessSlot::HEAP);
   if (heap_used_bytes.has_value() && this->heap_used_sensor_ != nullptr) {
     this->heap_used_sensor_->publish_state(*heap_used_bytes);
   }
@@ -915,18 +1065,21 @@ void ESP32EVSEComponent::update_heap_(std::optional<uint32_t> heap_used_bytes,
 }
 
 void ESP32EVSEComponent::update_energy_consumption_(float value) {
+  this->mark_response_received_(FreshnessSlot::ENERGY_CONSUMPTION);
   if (this->energy_consumption_sensor_ != nullptr) {
     this->energy_consumption_sensor_->publish_state(value);
   }
 }
 
 void ESP32EVSEComponent::update_total_energy_consumption_(float value) {
+  this->mark_response_received_(FreshnessSlot::TOTAL_ENERGY_CONSUMPTION);
   if (this->total_energy_consumption_sensor_ != nullptr) {
     this->total_energy_consumption_sensor_->publish_state(value);
   }
 }
 
 void ESP32EVSEComponent::update_voltages_(float l1, float l2, float l3) {
+  this->mark_response_received_(FreshnessSlot::VOLTAGE);
   if (!std::isnan(l1))
     l1 /= 1000.0f;
   if (!std::isnan(l2))
@@ -942,6 +1095,7 @@ void ESP32EVSEComponent::update_voltages_(float l1, float l2, float l3) {
 }
 
 void ESP32EVSEComponent::update_currents_(float l1, float l2, float l3) {
+  this->mark_response_received_(FreshnessSlot::CURRENT);
   if (!std::isnan(l1))
     l1 /= 1000.0f;
   if (!std::isnan(l2))
@@ -957,6 +1111,7 @@ void ESP32EVSEComponent::update_currents_(float l1, float l2, float l3) {
 }
 
 void ESP32EVSEComponent::update_wifi_status_(bool connected, int rssi) {
+  this->mark_response_received_(FreshnessSlot::WIFI_STATUS);
   if (this->wifi_connected_binary_sensor_ != nullptr) {
     this->wifi_connected_binary_sensor_->publish_state(connected);
   }
@@ -973,10 +1128,12 @@ void ESP32EVSEComponent::update_wifi_status_(bool connected, int rssi) {
 // entities.  Values are scaled so ESPHome users interact with human readable
 // units instead of protocol specific integers.
 void ESP32EVSEComponent::update_default_charging_current_(uint16_t value_tenths) {
+  this->mark_response_received_(FreshnessSlot::DEFAULT_CHARGING_CURRENT);
   this->publish_scaled_number_(this->default_charging_current_number_, value_tenths);
 }
 
 void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_amps) {
+  this->mark_response_received_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT);
   float limit = static_cast<float>(value_amps);
   if (this->maximum_charging_current_number_ != nullptr) {
     float multiplier = this->maximum_charging_current_number_->get_multiplier();
@@ -989,30 +1146,37 @@ void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_amps) {
 }
 
 void ESP32EVSEComponent::update_consumption_limit_(float value) {
+  this->mark_response_received_(FreshnessSlot::CONSUMPTION_LIMIT);
   this->publish_scaled_number_(this->consumption_limit_number_, value);
 }
 
 void ESP32EVSEComponent::update_default_consumption_limit_(float value) {
+  this->mark_response_received_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT);
   this->publish_scaled_number_(this->default_consumption_limit_number_, value);
 }
 
 void ESP32EVSEComponent::update_charging_time_limit_(uint32_t value) {
+  this->mark_response_received_(FreshnessSlot::CHARGING_TIME_LIMIT);
   this->publish_scaled_number_(this->charging_time_limit_number_, static_cast<float>(value));
 }
 
 void ESP32EVSEComponent::update_default_charging_time_limit_(uint32_t value) {
+  this->mark_response_received_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT);
   this->publish_scaled_number_(this->default_charging_time_limit_number_, static_cast<float>(value));
 }
 
 void ESP32EVSEComponent::update_under_power_limit_(float value) {
+  this->mark_response_received_(FreshnessSlot::UNDER_POWER_LIMIT);
   this->publish_scaled_number_(this->under_power_limit_number_, value);
 }
 
 void ESP32EVSEComponent::update_default_under_power_limit_(float value) {
+  this->mark_response_received_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT);
   this->publish_scaled_number_(this->default_under_power_limit_number_, value);
 }
 
 void ESP32EVSEComponent::update_pending_authorization_(bool pending) {
+  this->mark_response_received_(FreshnessSlot::PENDING_AUTHORIZATION);
   if (this->pending_authorization_binary_sensor_ != nullptr) {
     this->pending_authorization_binary_sensor_->publish_state(pending);
   }

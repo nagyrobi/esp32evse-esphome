@@ -14,6 +14,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include <array>
 #include <deque>
 #include <functional>
 #include <limits>
@@ -201,6 +202,52 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void send_authorize_command();
 
  protected:
+  // Every high-frequency query is assigned a "freshness slot".  The slot holds
+  // the timestamp of the most recent response so the periodic poll can tell if
+  // we already have up-to-date data without re-issuing the corresponding AT
+  // command.
+  enum class FreshnessSlot : uint8_t {
+    STATE = 0,
+    ENABLE,
+    PENDING_AUTHORIZATION,
+    TEMPERATURE,
+    CHARGING_CURRENT,
+    EMETER_POWER,
+    EMETER_SESSION_TIME,
+    EMETER_CHARGING_TIME,
+    HEAP,
+    ENERGY_CONSUMPTION,
+    TOTAL_ENERGY_CONSUMPTION,
+    VOLTAGE,
+    CURRENT,
+    WIFI_STATUS,
+    AVAILABLE,
+    REQUEST_AUTHORIZATION,
+    DEFAULT_CHARGING_CURRENT,
+    MAXIMUM_CHARGING_CURRENT,
+    CONSUMPTION_LIMIT,
+    DEFAULT_CONSUMPTION_LIMIT,
+    CHARGING_TIME_LIMIT,
+    DEFAULT_CHARGING_TIME_LIMIT,
+    UNDER_POWER_LIMIT,
+    DEFAULT_UNDER_POWER_LIMIT,
+    WIFI_STA_CFG,
+    WIFI_STA_IP,
+    WIFI_STA_MAC,
+    DEVICE_NAME,
+    CHIP,
+    VERSION,
+    IDF_VERSION,
+    BUILD_TIME,
+    DEVICE_TIME,
+    SLOT_COUNT
+  };
+
+  // Record the current ``millis()`` timestamp for the supplied freshness slot
+  // and consult that table when deciding whether a poll can be skipped.
+  void mark_response_received_(FreshnessSlot slot);
+  bool should_skip_poll_(FreshnessSlot slot) const;
+
   // Commands are queued while we wait for acknowledgements from the EVSE; this
   // struct tracks their progress and callbacks.
   struct PendingCommand {
@@ -310,6 +357,13 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
   std::deque<PendingCommand> pending_commands_;
+
+  // Rotate through slow-changing queries so the periodic poll keeps latency low
+  // for the high-frequency telemetry sensors.
+  uint8_t slow_poll_group_{0};
+  // Per-slot timestamps that power the freshness tracker.  A ``0`` entry means
+  // the slot has never received a response and should not suppress polling yet.
+  std::array<uint32_t, static_cast<size_t>(FreshnessSlot::SLOT_COUNT)> last_response_millis_{};
 };
 
 // Lightweight wrappers for the ESPHome entity classes.  They forward state
