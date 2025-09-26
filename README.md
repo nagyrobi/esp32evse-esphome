@@ -1,4 +1,4 @@
-# ESP32EVSE ESPHome Integration
+# ESP3-2EVSE ESPHome Integration
 
 This repository provides an [ESPHome](https://esphome.io/) configuration and custom
 component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller.
