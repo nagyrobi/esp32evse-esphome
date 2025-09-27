@@ -1192,23 +1192,20 @@ void ESP32EVSEComponent::request_number_update_(ESP32EVSEChargingCurrentNumber *
 void ESP32EVSEEnableSwitch::write_state(bool state) {
   if (this->parent_ == nullptr)
     return;
-  this->publish_state(state);
   this->parent_->write_enable_state(state);
 }
 
-// Switch implementations optimistically publish their new state and rely on the
-// component callbacks to revert if the EVSE rejects the request.
+// Switch implementations defer publishing their new state until the EVSE
+// acknowledges the change via the component callbacks.
 void ESP32EVSEAvailableSwitch::write_state(bool state) {
   if (this->parent_ == nullptr)
     return;
-  this->publish_state(state);
   this->parent_->write_available_state(state);
 }
 
 void ESP32EVSERequestAuthorizationSwitch::write_state(bool state) {
   if (this->parent_ == nullptr)
     return;
-  this->publish_state(state);
   this->parent_->write_request_authorization_state(state);
 }
 
