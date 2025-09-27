@@ -1219,7 +1219,6 @@ void ESP32EVSEChargingCurrentNumber::control(float value) {
   if (this->parent_ == nullptr)
     return;
   float limited = this->parent_->clamp_charging_current_value(this, value);
-  this->publish_state(limited);
   this->parent_->write_number_value(this, limited);
 }
 
