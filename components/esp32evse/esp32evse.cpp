@@ -618,7 +618,25 @@ void ESP32EVSEComponent::queue_pending_command_(PendingCommand pending) {
   ESP_LOGV(TAG, "Queueing command: %s", pending.command.c_str());
   // Track each command so we only send one request at a time and can associate
   // the eventual OK/ERROR response with the original metadata.
-  this->pending_commands_.push_back(std::move(pending));
+  const bool prioritize_interactive = pending.type != PendingCommand::Type::GENERIC;
+
+  if (!prioritize_interactive || this->pending_commands_.empty()) {
+    this->pending_commands_.push_back(std::move(pending));
+  } else {
+    auto insert_pos = this->pending_commands_.begin();
+    if (insert_pos->sent)
+      ++insert_pos;  // Keep the command currently waiting for an ACK at the front.
+
+    // Interactive commands should "cut" ahead of the bulk poll requests so the UI
+    // feels responsive, but they still need to stay behind any request that has
+    // already been transmitted. Walk forward until we reach the first unsent
+    // generic poll item and insert the interactive request there.
+    for (; insert_pos != this->pending_commands_.end(); ++insert_pos) {
+      if (insert_pos->type == PendingCommand::Type::GENERIC)
+        break;  // Stop before unsent poll traffic so interactive writes jump ahead of it.
+    }
+    this->pending_commands_.insert(insert_pos, std::move(pending));
+  }
   this->process_next_command_();
 }
 
