@@ -12,11 +12,18 @@ from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_STEP,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_POWER,
     ENTITY_CATEGORY_CONFIG,
     UNIT_AMPERE,
-    UNIT_SECOND,
-    UNIT_WATT,
+    UNIT_HOUR,
+    UNIT_KILOWATT,
 )
+
+try:
+    from esphome.const import UNIT_KILOWATT_HOUR
+except ImportError:  # pragma: no cover - compatibility with older ESPHome releases
+    from esphome.const import UNIT_KILOWATT_HOURS as UNIT_KILOWATT_HOUR
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -51,6 +58,7 @@ def _build_number_schema(
     default_step,
     default_multiplier,
     entity_category=None,
+    device_class=None,
 ):
     """Create a sensor schema and defaults tailored to a specific EVSE command."""
 
@@ -59,6 +67,8 @@ def _build_number_schema(
         kwargs["unit_of_measurement"] = unit
     if entity_category is not None:
         kwargs["entity_category"] = entity_category
+    if device_class is not None:
+        kwargs["device_class"] = device_class
     if _NUMBER_SCHEMA_SUPPORTS_LIMITS:
         kwargs.update(
             {
@@ -130,63 +140,67 @@ _NUMBER_TYPES = {
     ),
     CONF_CONSUMPTION_LIMIT: _make_number_type(
         icon="mdi:gauge",
-        unit=UNIT_WATT,
+        unit=UNIT_KILOWATT_HOUR,
         default_min=0.0,
-        default_max=100000.0,
-        default_step=10.0,
-        default_multiplier=1.0,
+        default_max=50.0,
+        default_step=0.1,
+        default_multiplier=1000.0,
+        device_class=DEVICE_CLASS_ENERGY,
         command="AT+CONSUMLIM",
         setter="set_consumption_limit_number",
     ),
     CONF_DEFAULT_CONSUMPTION_LIMIT: _make_number_type(
         icon="mdi:gauge",
-        unit=UNIT_WATT,
+        unit=UNIT_KILOWATT_HOUR,
         default_min=0.0,
-        default_max=100000.0,
-        default_step=10.0,
-        default_multiplier=1.0,
+        default_max=50.0,
+        default_step=0.1,
+        default_multiplier=1000.0,
+        device_class=DEVICE_CLASS_ENERGY,
         entity_category=ENTITY_CATEGORY_CONFIG,
         command="AT+DEFCONSUMLIM",
         setter="set_default_consumption_limit_number",
     ),
     CONF_CHARGING_TIME_LIMIT: _make_number_type(
         icon="mdi:timer-outline",
-        unit=UNIT_SECOND,
+        unit=UNIT_HOUR,
         default_min=0.0,
-        default_max=86400.0,
-        default_step=60.0,
-        default_multiplier=1.0,
+        default_max=24.0,
+        default_step=0.5,
+        default_multiplier=3600.0,
         command="AT+CHTIMELIM",
         setter="set_charging_time_limit_number",
     ),
     CONF_DEFAULT_CHARGING_TIME_LIMIT: _make_number_type(
         icon="mdi:timer-outline",
-        unit=UNIT_SECOND,
+        unit=UNIT_HOUR,
         default_min=0.0,
-        default_max=86400.0,
-        default_step=60.0,
-        default_multiplier=1.0,
+        default_max=24.0,
+        default_step=0.5,
+        default_multiplier=3600.0,
         entity_category=ENTITY_CATEGORY_CONFIG,
         command="AT+DEFCHTIMELIM",
         setter="set_default_charging_time_limit_number",
     ),
     CONF_UNDER_POWER_LIMIT: _make_number_type(
         icon="mdi:flash-outline",
-        unit=UNIT_WATT,
+        unit=UNIT_KILOWATT,
         default_min=0.0,
-        default_max=100000.0,
-        default_step=10.0,
-        default_multiplier=1.0,
+        default_max=10.0,
+        default_step=0.1,
+        default_multiplier=1000.0,
+        device_class=DEVICE_CLASS_POWER,
         command="AT+UNDERPOWERLIM",
         setter="set_under_power_limit_number",
     ),
     CONF_DEFAULT_UNDER_POWER_LIMIT: _make_number_type(
         icon="mdi:flash-outline",
-        unit=UNIT_WATT,
+        unit=UNIT_KILOWATT,
         default_min=0.0,
-        default_max=100000.0,
-        default_step=10.0,
-        default_multiplier=1.0,
+        default_max=10.0,
+        default_step=0.1,
+        default_multiplier=1000.0,
+        device_class=DEVICE_CLASS_POWER,
         entity_category=ENTITY_CATEGORY_CONFIG,
         command="AT+DEFUNDERPOWERLIM",
         setter="set_default_under_power_limit_number",
