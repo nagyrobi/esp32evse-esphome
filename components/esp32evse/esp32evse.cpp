@@ -212,7 +212,7 @@ void ESP32EVSEComponent::loop() {
     auto pending = std::move(this->pending_commands_.front());
     this->pending_commands_.pop_front();
     if (pending.callback)
-      pending.callback(false);
+      pending.callback(pending, false);
     this->process_next_command_();
   }
 }
@@ -453,33 +453,60 @@ void ESP32EVSEComponent::request_pending_authorization_update() {
 
 // Translate ESPHome entity state changes into AT commands.
 void ESP32EVSEComponent::write_enable_state(bool enabled) {
-  std::string command = "AT+ENABLE=";
-  command += enabled ? '1' : '0';
-  this->send_command_(command, [this, enabled](bool success) {
-    if (!success && this->enable_switch_ != nullptr) {
-      this->enable_switch_->publish_state(!enabled);
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::ENABLE_WRITE;
+  // Remember the requested state so we can publish it once the EVSE confirms
+  // the write.
+  pending.bool_value = enabled;
+  pending.command = "AT+ENABLE=";
+  pending.command += enabled ? '1' : '0';
+  pending.callback = [this](const PendingCommand &cmd, bool success) {
+    if (success) {
+      if (this->enable_switch_ != nullptr)
+        this->enable_switch_->publish_state(cmd.bool_value);
+    } else if (this->enable_switch_ != nullptr) {
+      this->enable_switch_->publish_state(!cmd.bool_value);
     }
-  });
+  };
+  this->queue_pending_command_(std::move(pending));
 }
 
 void ESP32EVSEComponent::write_available_state(bool available) {
-  std::string command = "AT+AVAILABLE=";
-  command += available ? '1' : '0';
-  this->send_command_(command, [this](bool success) {
-    if (!success && this->available_switch_ != nullptr) {
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::AVAILABLE_WRITE;
+  // Store the intended availability state so the acknowledgement handler can
+  // publish it instead of the optimistic toggle response.
+  pending.bool_value = available;
+  pending.command = "AT+AVAILABLE=";
+  pending.command += available ? '1' : '0';
+  pending.callback = [this](const PendingCommand &cmd, bool success) {
+    if (success) {
+      if (this->available_switch_ != nullptr)
+        this->available_switch_->publish_state(cmd.bool_value);
+    } else if (this->available_switch_ != nullptr) {
       this->request_available_update();
     }
-  });
+  };
+  this->queue_pending_command_(std::move(pending));
 }
 
 void ESP32EVSEComponent::write_request_authorization_state(bool request) {
-  std::string command = "AT+REQAUTH=";
-  command += request ? '1' : '0';
-  this->send_command_(command, [this](bool success) {
-    if (!success && this->request_authorization_switch_ != nullptr) {
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::REQUEST_AUTHORIZATION_WRITE;
+  // Persist the desired authorization request flag to publish after a
+  // successful acknowledgement.
+  pending.bool_value = request;
+  pending.command = "AT+REQAUTH=";
+  pending.command += request ? '1' : '0';
+  pending.callback = [this](const PendingCommand &cmd, bool success) {
+    if (success) {
+      if (this->request_authorization_switch_ != nullptr)
+        this->request_authorization_switch_->publish_state(cmd.bool_value);
+    } else if (this->request_authorization_switch_ != nullptr) {
       this->request_request_authorization_update();
     }
-  });
+  };
+  this->queue_pending_command_(std::move(pending));
 }
 
 void ESP32EVSEComponent::write_charging_current(float current) {
@@ -505,12 +532,21 @@ void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *numb
   value = this->clamp_charging_current_value(number, value);
   float scaled_value = value * number->get_multiplier();
   int32_t to_send = static_cast<int32_t>(std::lroundf(scaled_value));
-  std::string cmd = command + "=" + to_string(to_send);
-  this->send_command_(cmd, [this, number](bool success) {
-    if (!success) {
-      this->request_number_update_(number);
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::NUMBER_WRITE;
+  // Retain the target entity and scaled integer the firmware expects so the
+  // callback can publish the same reading once the write sticks.
+  pending.number = number;
+  pending.scaled_value = static_cast<float>(to_send);
+  pending.command = command + "=" + std::to_string(to_send);
+  pending.callback = [this](const PendingCommand &cmd, bool success) {
+    if (success) {
+      this->publish_scaled_number_(cmd.number, cmd.scaled_value);
+    } else {
+      this->request_number_update_(cmd.number);
     }
-  });
+  };
+  this->queue_pending_command_(std::move(pending));
 }
 
 // Convenience wrappers for popular subscription targets.  They are exposed to
@@ -567,13 +603,38 @@ void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
 
 void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }
 
-bool ESP32EVSEComponent::send_command_(const std::string &command, std::function<void(bool)> callback) {
-  ESP_LOGV(TAG, "Queueing command: %s", command.c_str());
+bool ESP32EVSEComponent::send_command_(const std::string &command,
+                                       std::function<void(const PendingCommand &, bool)> callback) {
   PendingCommand pending;
   pending.command = command;
+  // Callbacks for read commands are rare but we still thread them through the
+  // same queue machinery so acknowledgements remain ordered.
   pending.callback = std::move(callback);
+  this->queue_pending_command_(std::move(pending));
+  return true;
+}
+
+void ESP32EVSEComponent::queue_pending_command_(PendingCommand pending) {
+  ESP_LOGV(TAG, "Queueing command: %s", pending.command.c_str());
+  // Track each command so we only send one request at a time and can associate
+  // the eventual OK/ERROR response with the original metadata.
   this->pending_commands_.push_back(std::move(pending));
   this->process_next_command_();
+}
+
+bool ESP32EVSEComponent::is_front_sent_write_(PendingCommand::Type type,
+                                              ESP32EVSEChargingCurrentNumber *number) const {
+  if (this->pending_commands_.empty())
+    return false;
+  const auto &front = this->pending_commands_.front();
+  if (!front.sent)
+    return false;
+  if (front.type != type)
+    return false;
+  if (type == PendingCommand::Type::NUMBER_WRITE && front.number != number)
+    return false;
+  // Only treat the front command as a pending write if we've already pushed it
+  // to the EVSE and the metadata matches the entity currently updating.
   return true;
 }
 
@@ -846,7 +907,7 @@ void ESP32EVSEComponent::handle_ack_(bool success) {
   this->pending_commands_.pop_front();
   ESP_LOGV(TAG, "Command '%s' completed with %s", pending.command.c_str(), success ? "OK" : "ERROR");
   if (pending.callback)
-    pending.callback(success);
+    pending.callback(pending, success);
   this->process_next_command_();
 }
 
@@ -880,6 +941,10 @@ void ESP32EVSEComponent::update_state_(uint8_t state) {
 // Mirror EVSE flags back into ESPHome entities.
 void ESP32EVSEComponent::update_enable_(bool enable) {
   this->mark_response_received_(FreshnessSlot::ENABLE);
+  // Ignore subscription echoes while a matching command is awaiting an
+  // acknowledgement so we only flip the switch state once.
+  if (this->is_front_sent_write_(PendingCommand::Type::ENABLE_WRITE))
+    return;
   if (this->enable_switch_ != nullptr) {
     this->enable_switch_->publish_state(enable);
   }
@@ -911,6 +976,10 @@ void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t lo
 void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value) {
   if (number == nullptr)
     return;
+  if (this->is_front_sent_write_(PendingCommand::Type::NUMBER_WRITE, number))
+    return;
+  // Convert the EVSE's integer back into the human-friendly engineering units
+  // expected by the ESPHome number entity before reporting it.
   float multiplier = number->get_multiplier();
   if (multiplier == 0.0f)
     multiplier = 1.0f;
@@ -1022,6 +1091,10 @@ void ESP32EVSEComponent::update_device_name_(const std::string &name) {
 
 void ESP32EVSEComponent::update_available_(bool available) {
   this->mark_response_received_(FreshnessSlot::AVAILABLE);
+  // Defer publishing until the queued write completes to prevent flicker from
+  // the immediate subscription update.
+  if (this->is_front_sent_write_(PendingCommand::Type::AVAILABLE_WRITE))
+    return;
   if (this->available_switch_ != nullptr) {
     this->available_switch_->publish_state(available);
   }
@@ -1029,6 +1102,10 @@ void ESP32EVSEComponent::update_available_(bool available) {
 
 void ESP32EVSEComponent::update_request_authorization_(bool request) {
   this->mark_response_received_(FreshnessSlot::REQUEST_AUTHORIZATION);
+  // Hold back the remote state until the command queue confirms the user's
+  // desired value.
+  if (this->is_front_sent_write_(PendingCommand::Type::REQUEST_AUTHORIZATION_WRITE))
+    return;
   if (this->request_authorization_switch_ != nullptr) {
     this->request_authorization_switch_->publish_state(request);
   }
