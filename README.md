@@ -52,10 +52,6 @@ esp32evse:
   uart_id: evse_uart
   update_interval: 60s # Optional: adjust how often the component polls the charger (10s–10min), defaults to 60s.
 ```
-
-Check out ESPHome [documentation](https://esphome.io/) to learn about the working principle of the system.
-Check out ESP32-EVSE [documentation]([https://esphome.io/](https://github.com/dzurikmiroslav/esp32-evse/wiki) to learn on how to configure and use ESP32-EVSE.
-
 ## Entities exposed
 
 The example configuration enables every entity type currently supported by the
