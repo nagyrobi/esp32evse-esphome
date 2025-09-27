@@ -257,22 +257,10 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   // Commands are queued while we wait for acknowledgements from the EVSE; this
   // struct tracks their progress and callbacks.
   struct PendingCommand {
-    enum class Type : uint8_t {
-      GENERIC = 0,
-      ENABLE_WRITE,
-      AVAILABLE_WRITE,
-      REQUEST_AUTHORIZATION_WRITE,
-      NUMBER_WRITE,
-    };
-
-    Type type{Type::GENERIC};
     std::string command;
-    std::function<void(const PendingCommand &, bool)> callback;
+    std::function<void(bool)> callback;
     uint32_t start_time{0};
     bool sent{false};
-    bool bool_value{false};
-    ESP32EVSEChargingCurrentNumber *number{nullptr};
-    float scaled_value{std::numeric_limits<float>::quiet_NaN()};
   };
 
   void process_line_(const std::string &line);
@@ -313,11 +301,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_default_under_power_limit_(float value);
   void update_pending_authorization_(bool pending);
 
-  bool send_command_(const std::string &command,
-                     std::function<void(const PendingCommand &, bool)> callback = nullptr);
-  void queue_pending_command_(PendingCommand pending);
-  bool is_front_sent_write_(PendingCommand::Type type,
-                            ESP32EVSEChargingCurrentNumber *number = nullptr) const;
+  bool send_command_(const std::string &command, std::function<void(bool)> callback = nullptr);
   void request_number_update_(ESP32EVSEChargingCurrentNumber *number);
   void publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value);
   void publish_text_sensor_state_(text_sensor::TextSensor *sensor, const std::string &state);
