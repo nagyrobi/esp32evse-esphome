@@ -211,7 +211,7 @@ and `AT+UNSUB` commands. Check out the
 [AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
 for details.
 
-To subscribe the ``emeter_power`` sensor to push updates every second (use any
+**Example:** To subscribe the ``emeter_power`` sensor to push updates every second (use any
 valid [ESPHome time](https://esphome.io/guides/configuration-types/#config-time)
 bigger than ``100ms``):
 
