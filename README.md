@@ -1,6 +1,7 @@
 # ESP32-EVSE ESPHome Integration
 
-This repository provides an [ESPHome](https://esphome.io/) custom component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller.
+This repository provides an [ESPHome](https://esphome.io/) custom component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller. 
+It's mainly intended to be used in a custom [HMI screen based on ESPHome and LVGL](https://github.com/nagyrobi/esp32-evse_esphome-lvgl).
 
 It implements the communication with ESP32-EVSE using [AT Commands](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands).
 
