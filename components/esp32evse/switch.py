@@ -18,10 +18,14 @@ ESP32EVSEAvailableSwitch = esp32evse_ns.class_("ESP32EVSEAvailableSwitch", switc
 ESP32EVSERequestAuthorizationSwitch = esp32evse_ns.class_(
     "ESP32EVSERequestAuthorizationSwitch", switch.Switch
 )
+ESP32EVSEEmeterThreePhaseSwitch = esp32evse_ns.class_(
+    "ESP32EVSEEmeterThreePhaseSwitch", switch.Switch
+)
 
 CONF_ENABLE = "enable"
 CONF_AVAILABLE = "available"
 CONF_REQUEST_AUTHORIZATION = "request_authorization"
+CONF_THREE_PHASE_METER = "three_phase_meter"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -48,10 +52,17 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:hand-back-left-outline",
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
+            cv.Optional(CONF_THREE_PHASE_METER): switch.switch_schema(
+                ESP32EVSEEmeterThreePhaseSwitch,
+                icon="mdi:transmission-tower",
+                entity_category=ENTITY_CATEGORY_CONFIG,
+            ),
         }
     ),
     # Avoid generating empty switch groups by requiring at least one entry.
-    cv.has_at_least_one_key(CONF_ENABLE, CONF_AVAILABLE, CONF_REQUEST_AUTHORIZATION),
+    cv.has_at_least_one_key(
+        CONF_ENABLE, CONF_AVAILABLE, CONF_REQUEST_AUTHORIZATION, CONF_THREE_PHASE_METER
+    ),
 )
 
 
@@ -72,3 +83,7 @@ async def to_code(config):
         sw = await switch.new_switch(req_auth_config)
         await cg.register_parented(sw, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_request_authorization_switch(sw))
+    if three_phase_config := config.get(CONF_THREE_PHASE_METER):
+        sw = await switch.new_switch(three_phase_config)
+        await cg.register_parented(sw, config[CONF_ESP32EVSE_ID])
+        cg.add(parent.set_emeter_three_phase_switch(sw))

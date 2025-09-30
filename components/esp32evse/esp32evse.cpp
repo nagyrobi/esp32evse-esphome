@@ -144,6 +144,8 @@ void ESP32EVSEComponent::setup() {
       this->request_available_update();
     if (this->request_authorization_switch_ != nullptr)
       this->request_request_authorization_update();
+    if (this->emeter_three_phase_switch_ != nullptr)
+      this->request_emeter_three_phase_update();
     if (this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr)
       this->request_heap_update();
     if (this->energy_consumption_sensor_ != nullptr)
@@ -304,6 +306,9 @@ void ESP32EVSEComponent::update() {
   if (this->request_authorization_switch_ != nullptr &&
       !this->should_skip_poll_(FreshnessSlot::REQUEST_AUTHORIZATION))
     this->request_request_authorization_update();
+  if (this->emeter_three_phase_switch_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::EMETER_THREE_PHASE))
+    this->request_emeter_three_phase_update();
 
   // Slow-changing parameters are also requested every poll.  The
   // ``should_skip_poll_`` guard prevents redundant commands when a subscription
@@ -413,6 +418,9 @@ void ESP32EVSEComponent::request_available_update() { this->send_command_("AT+AV
 void ESP32EVSEComponent::request_request_authorization_update() {
   this->send_command_("AT+REQAUTH?");
 }
+void ESP32EVSEComponent::request_emeter_three_phase_update() {
+  this->send_command_("AT+EMETERTHREEPHASE?");
+}
 void ESP32EVSEComponent::request_heap_update() { this->send_command_("AT+HEAP?"); }
 void ESP32EVSEComponent::request_energy_consumption_update() {
   this->send_command_("AT+EMETERCONSUM?");
@@ -504,6 +512,23 @@ void ESP32EVSEComponent::write_request_authorization_state(bool request) {
         this->request_authorization_switch_->publish_state(cmd.bool_value);
     } else if (this->request_authorization_switch_ != nullptr) {
       this->request_request_authorization_update();
+    }
+  };
+  this->queue_pending_command_(std::move(pending));
+}
+
+void ESP32EVSEComponent::write_emeter_three_phase_state(bool enabled) {
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::EMETER_THREE_PHASE_WRITE;
+  pending.bool_value = enabled;
+  pending.command = "AT+EMETERTHREEPHASE=";
+  pending.command += enabled ? '1' : '0';
+  pending.callback = [this](const PendingCommand &cmd, bool success) {
+    if (success) {
+      if (this->emeter_three_phase_switch_ != nullptr)
+        this->emeter_three_phase_switch_->publish_state(cmd.bool_value);
+    } else if (this->emeter_three_phase_switch_ != nullptr) {
+      this->request_emeter_three_phase_update();
     }
   };
   this->queue_pending_command_(std::move(pending));
@@ -774,6 +799,11 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   if (const char *value = value_after_prefix(line, "+REQAUTH")) {
     int req = atoi(value);
     this->update_request_authorization_(req == 1);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+EMETERTHREEPHASE")) {
+    int enabled = atoi(value);
+    this->update_emeter_three_phase_(enabled == 1);
     return;
   }
   if (const char *value = value_after_prefix(line, "+HEAP")) {
@@ -1129,6 +1159,15 @@ void ESP32EVSEComponent::update_request_authorization_(bool request) {
   }
 }
 
+void ESP32EVSEComponent::update_emeter_three_phase_(bool enabled) {
+  this->mark_response_received_(FreshnessSlot::EMETER_THREE_PHASE);
+  if (this->is_front_sent_write_(PendingCommand::Type::EMETER_THREE_PHASE_WRITE))
+    return;
+  if (this->emeter_three_phase_switch_ != nullptr) {
+    this->emeter_three_phase_switch_->publish_state(enabled);
+  }
+}
+
 void ESP32EVSEComponent::update_heap_(std::optional<uint32_t> heap_used_bytes,
                                       std::optional<uint32_t> heap_total_bytes) {
   this->mark_response_received_(FreshnessSlot::HEAP);
@@ -1302,6 +1341,12 @@ void ESP32EVSERequestAuthorizationSwitch::write_state(bool state) {
   if (this->parent_ == nullptr)
     return;
   this->parent_->write_request_authorization_state(state);
+}
+
+void ESP32EVSEEmeterThreePhaseSwitch::write_state(bool state) {
+  if (this->parent_ == nullptr)
+    return;
+  this->parent_->write_emeter_three_phase_state(state);
 }
 
 ESP32EVSEChargingCurrentNumber::ESP32EVSEChargingCurrentNumber() {

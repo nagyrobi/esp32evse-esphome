@@ -116,6 +116,8 @@ switch:
       name: "EVSE Available"
     request_authorization:
       name: "EVSE Request Authorization"
+    three_phase_meter:
+      name: "EVSE Three-Phase Meter"
 ```
 
 ### Buttons
