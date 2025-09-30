@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_THREE_PHASE_METER): switch.switch_schema(
                 ESP32EVSEEmeterThreePhaseSwitch,
-                icon="mdi:transmission-tower",
+                icon="mdi:numeric-3-circle",
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
         }
