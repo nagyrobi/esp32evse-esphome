@@ -28,6 +28,7 @@ namespace esp32evse {
 class ESP32EVSEEnableSwitch;
 class ESP32EVSEAvailableSwitch;
 class ESP32EVSERequestAuthorizationSwitch;
+class ESP32EVSEEmeterThreePhaseSwitch;
 class ESP32EVSEChargingCurrentNumber;
 class ESP32EVSEResetButton;
 class ESP32EVSEAuthorizeButton;
@@ -83,6 +84,9 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void set_available_switch(ESP32EVSEAvailableSwitch *sw) { this->available_switch_ = sw; }
   void set_request_authorization_switch(ESP32EVSERequestAuthorizationSwitch *sw) {
     this->request_authorization_switch_ = sw;
+  }
+  void set_emeter_three_phase_switch(ESP32EVSEEmeterThreePhaseSwitch *sw) {
+    this->emeter_three_phase_switch_ = sw;
   }
 
   void set_temperature_high_sensor(sensor::Sensor *sensor) {
@@ -177,6 +181,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_device_name_update();
   void request_available_update();
   void request_request_authorization_update();
+  void request_emeter_three_phase_update();
   void request_heap_update();
   void request_energy_consumption_update();
   void request_total_energy_consumption_update();
@@ -197,6 +202,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void write_enable_state(bool enabled);
   void write_available_state(bool available);
   void write_request_authorization_state(bool request);
+  void write_emeter_three_phase_state(bool enabled);
   void write_charging_current(float current);
   void write_number_value(ESP32EVSEChargingCurrentNumber *number, float value);
 
@@ -229,6 +235,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     WIFI_STATUS,
     AVAILABLE,
     REQUEST_AUTHORIZATION,
+    EMETER_THREE_PHASE,
     DEFAULT_CHARGING_CURRENT,
     MAXIMUM_CHARGING_CURRENT,
     CONSUMPTION_LIMIT,
@@ -262,6 +269,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
       ENABLE_WRITE,
       AVAILABLE_WRITE,
       REQUEST_AUTHORIZATION_WRITE,
+      EMETER_THREE_PHASE_WRITE,
       NUMBER_WRITE,
     };
 
@@ -301,6 +309,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_device_name_(const std::string &name);
   void update_available_(bool available);
   void update_request_authorization_(bool request);
+  void update_emeter_three_phase_(bool enabled);
   void update_heap_(std::optional<uint32_t> heap_used_bytes,
                     std::optional<uint32_t> heap_total_bytes);
   void update_energy_consumption_(float value);
@@ -345,6 +354,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSEEnableSwitch *enable_switch_{nullptr};
   ESP32EVSEAvailableSwitch *available_switch_{nullptr};
   ESP32EVSERequestAuthorizationSwitch *request_authorization_switch_{nullptr};
+  ESP32EVSEEmeterThreePhaseSwitch *emeter_three_phase_switch_{nullptr};
 
   sensor::Sensor *temperature_high_sensor_{nullptr};
   sensor::Sensor *temperature_low_sensor_{nullptr};
@@ -403,6 +413,12 @@ class ESP32EVSEAvailableSwitch : public switch_::Switch, public Parented<ESP32EV
 };
 
 class ESP32EVSERequestAuthorizationSwitch
+    : public switch_::Switch, public Parented<ESP32EVSEComponent> {
+ protected:
+  void write_state(bool state) override;
+};
+
+class ESP32EVSEEmeterThreePhaseSwitch
     : public switch_::Switch, public Parented<ESP32EVSEComponent> {
  protected:
   void write_state(bool state) override;

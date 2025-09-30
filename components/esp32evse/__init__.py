@@ -179,6 +179,7 @@ _SUBSCRIPTION_TARGETS = {
     "enable": '"+ENABLE"',
     "available": '"+AVAILABLE"',
     "request_authorization": '"+REQAUTH"',
+    "three_phase_meter": '"+EMETERTHREEPHASE"',
     # Sensors
     "temperature": '"+TEMP"',
     "emeter_power": '"+EMETERPOWER"',

@@ -151,6 +151,8 @@ switch:
       name: "EVSE Request Authorization"
     available:
       name: "EVSE Available"
+    three_phase_meter:
+      name: "EVSE Three-Phase Meter"
 
 # Text sensors carry metadata strings such as firmware details and network
 # identifiers that are useful for diagnostics.
