@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.All(
             # Available lets operators mark the charger as ready for clients.
             cv.Optional(CONF_AVAILABLE): switch.switch_schema(
                 ESP32EVSEAvailableSwitch,
-                icon="mdi:fuel-cell",
+                icon="mdi:progress-wrench",
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
             # Request authorization toggles whether clients must present an
@@ -52,6 +52,8 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:hand-back-left-outline",
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
+            # Three-Phase metering for proper enegry calculations. For the case
+            # when you trip down phases 2 and 3 and would like to do One-Phase charging.
             cv.Optional(CONF_THREE_PHASE_METER): switch.switch_schema(
                 ESP32EVSEEmeterThreePhaseSwitch,
                 icon="mdi:numeric-3-circle",
