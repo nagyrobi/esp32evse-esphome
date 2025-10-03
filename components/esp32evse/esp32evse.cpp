@@ -1284,10 +1284,9 @@ void ESP32EVSEComponent::update_currents_(float l1, float l2, float l3) {
 }
 
 void ESP32EVSEComponent::update_wifi_status_(bool connected, int rssi) {
-  this->wifi_connected_state_ = connected;
   this->mark_response_received_(FreshnessSlot::WIFI_STATUS);
-  if (this->wifi_connected_binary_sensor_ != nullptr && this->wifi_connected_state_.has_value()) {
-    this->wifi_connected_binary_sensor_->publish_state(*this->wifi_connected_state_);
+  if (this->wifi_connected_binary_sensor_ != nullptr) {
+    this->wifi_connected_binary_sensor_->publish_state(connected);
   }
   if (this->wifi_rssi_sensor_ != nullptr) {
     if (connected && rssi != std::numeric_limits<int>::min()) {
@@ -1350,48 +1349,37 @@ void ESP32EVSEComponent::update_default_under_power_limit_(float value) {
 }
 
 void ESP32EVSEComponent::update_pending_authorization_(bool pending) {
-  this->pending_authorization_state_ = pending;
   this->mark_response_received_(FreshnessSlot::PENDING_AUTHORIZATION);
-  if (this->pending_authorization_binary_sensor_ != nullptr &&
-      this->pending_authorization_state_.has_value()) {
-    this->pending_authorization_binary_sensor_->publish_state(*this->pending_authorization_state_);
+  if (this->pending_authorization_binary_sensor_ != nullptr) {
+    this->pending_authorization_binary_sensor_->publish_state(pending);
   }
 }
 
 void ESP32EVSEComponent::update_charging_limit_reached_(bool reached) {
-  this->charging_limit_reached_state_ = reached;
   this->mark_response_received_(FreshnessSlot::CHARGING_LIMIT_REACHED);
-  if (this->charging_limit_reached_binary_sensor_ != nullptr &&
-      this->charging_limit_reached_state_.has_value()) {
-    this->charging_limit_reached_binary_sensor_->publish_state(
-        *this->charging_limit_reached_state_);
+  if (this->charging_limit_reached_binary_sensor_ != nullptr) {
+    this->charging_limit_reached_binary_sensor_->publish_state(reached);
   }
 }
 
 void ESP32EVSEComponent::update_error_flags_(uint32_t mask) {
-  this->error_flag_mask_ = mask;
   this->mark_response_received_(FreshnessSlot::ERROR_FLAGS);
-  if (!this->error_flag_mask_.has_value())
-    return;
-  const uint32_t cached_mask = *this->error_flag_mask_;
   if (this->pilot_fault_binary_sensor_ != nullptr)
-    this->pilot_fault_binary_sensor_->publish_state((cached_mask & ERROR_FLAG_PILOT_FAULT) != 0u);
+    this->pilot_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_PILOT_FAULT) != 0u);
   if (this->diode_short_binary_sensor_ != nullptr)
-    this->diode_short_binary_sensor_->publish_state((cached_mask & ERROR_FLAG_DIODE_SHORT) != 0u);
+    this->diode_short_binary_sensor_->publish_state((mask & ERROR_FLAG_DIODE_SHORT) != 0u);
   if (this->lock_fault_binary_sensor_ != nullptr)
-    this->lock_fault_binary_sensor_->publish_state((cached_mask & ERROR_FLAG_LOCK_FAULT) != 0u);
+    this->lock_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_LOCK_FAULT) != 0u);
   if (this->unlock_fault_binary_sensor_ != nullptr)
-    this->unlock_fault_binary_sensor_->publish_state((cached_mask & ERROR_FLAG_UNLOCK_FAULT) != 0u);
+    this->unlock_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_UNLOCK_FAULT) != 0u);
   if (this->rcm_triggered_binary_sensor_ != nullptr)
-    this->rcm_triggered_binary_sensor_->publish_state((cached_mask & ERROR_FLAG_RCM_TRIGGERED) != 0u);
+    this->rcm_triggered_binary_sensor_->publish_state((mask & ERROR_FLAG_RCM_TRIGGERED) != 0u);
   if (this->rcm_self_test_fault_binary_sensor_ != nullptr)
-    this->rcm_self_test_fault_binary_sensor_->publish_state(
-        (cached_mask & ERROR_FLAG_RCM_SELF_TEST_FAULT) != 0u);
+    this->rcm_self_test_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_RCM_SELF_TEST_FAULT) != 0u);
   if (this->temperature_high_fault_binary_sensor_ != nullptr)
-    this->temperature_high_fault_binary_sensor_->publish_state(
-        (cached_mask & ERROR_FLAG_TEMPERATURE_HIGH) != 0u);
+    this->temperature_high_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_TEMPERATURE_HIGH) != 0u);
   if (this->temperature_fault_binary_sensor_ != nullptr)
-    this->temperature_fault_binary_sensor_->publish_state((cached_mask & ERROR_FLAG_TEMPERATURE_FAULT) != 0u);
+    this->temperature_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_TEMPERATURE_FAULT) != 0u);
 }
 
 // When a write command fails we re-request the value so the UI reflects the
