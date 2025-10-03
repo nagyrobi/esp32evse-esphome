@@ -35,6 +35,14 @@ class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
 class ESP32EVSEChargingLimitReachedBinarySensor;
+class ESP32EVSEPilotFaultBinarySensor;
+class ESP32EVSEDiodeShortBinarySensor;
+class ESP32EVSELockFaultBinarySensor;
+class ESP32EVSEUnlockFaultBinarySensor;
+class ESP32EVSERCMTriggeredBinarySensor;
+class ESP32EVSERCMSelfTestFaultBinarySensor;
+class ESP32EVSETemperatureHighFaultBinarySensor;
+class ESP32EVSETemperatureFaultBinarySensor;
 
 template<typename... Ts>
 class ESP32EVSEManagedSubscriptionAction;
@@ -165,6 +173,30 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
       ESP32EVSEChargingLimitReachedBinarySensor *bs) {
     this->charging_limit_reached_binary_sensor_ = bs;
   }
+  void set_pilot_fault_binary_sensor(ESP32EVSEPilotFaultBinarySensor *bs) {
+    this->pilot_fault_binary_sensor_ = bs;
+  }
+  void set_diode_short_binary_sensor(ESP32EVSEDiodeShortBinarySensor *bs) {
+    this->diode_short_binary_sensor_ = bs;
+  }
+  void set_lock_fault_binary_sensor(ESP32EVSELockFaultBinarySensor *bs) {
+    this->lock_fault_binary_sensor_ = bs;
+  }
+  void set_unlock_fault_binary_sensor(ESP32EVSEUnlockFaultBinarySensor *bs) {
+    this->unlock_fault_binary_sensor_ = bs;
+  }
+  void set_rcm_triggered_binary_sensor(ESP32EVSERCMTriggeredBinarySensor *bs) {
+    this->rcm_triggered_binary_sensor_ = bs;
+  }
+  void set_rcm_self_test_fault_binary_sensor(ESP32EVSERCMSelfTestFaultBinarySensor *bs) {
+    this->rcm_self_test_fault_binary_sensor_ = bs;
+  }
+  void set_temperature_high_fault_binary_sensor(ESP32EVSETemperatureHighFaultBinarySensor *bs) {
+    this->temperature_high_fault_binary_sensor_ = bs;
+  }
+  void set_temperature_fault_binary_sensor(ESP32EVSETemperatureFaultBinarySensor *bs) {
+    this->temperature_fault_binary_sensor_ = bs;
+  }
 
   // Methods that enqueue UART requests to refresh EVSE state.  These are called
   // during setup and from entity actions (for example, when a user toggles a
@@ -205,6 +237,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_default_under_power_limit_update();
   void request_pending_authorization_update();
   void request_charging_limit_reached_update();
+  void request_error_flags_update();
 
   // Writers mirror user initiated actions back to the EVSE controller.
   void write_enable_state(bool enabled);
@@ -222,6 +255,15 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void send_authorize_command();
 
  protected:
+  static constexpr uint32_t ERROR_FLAG_PILOT_FAULT = 1u << 0;
+  static constexpr uint32_t ERROR_FLAG_DIODE_SHORT = 1u << 1;
+  static constexpr uint32_t ERROR_FLAG_LOCK_FAULT = 1u << 2;
+  static constexpr uint32_t ERROR_FLAG_UNLOCK_FAULT = 1u << 3;
+  static constexpr uint32_t ERROR_FLAG_RCM_TRIGGERED = 1u << 4;
+  static constexpr uint32_t ERROR_FLAG_RCM_SELF_TEST_FAULT = 1u << 5;
+  static constexpr uint32_t ERROR_FLAG_TEMPERATURE_HIGH = 1u << 6;
+  static constexpr uint32_t ERROR_FLAG_TEMPERATURE_FAULT = 1u << 7;
+
   // Every high-frequency query is assigned a "freshness slot".  The slot holds
   // the timestamp of the most recent response so the periodic poll can tell if
   // we already have up-to-date data without re-issuing the corresponding AT
@@ -230,6 +272,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     STATE = 0,
     ENABLE,
     PENDING_AUTHORIZATION,
+    ERROR_FLAGS,
     TEMPERATURE,
     CHARGING_CURRENT,
     EMETER_POWER,
@@ -338,6 +381,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_default_under_power_limit_(float value);
   void update_pending_authorization_(bool pending);
   void update_charging_limit_reached_(bool reached);
+  void update_error_flags_(uint32_t mask);
 
   bool send_command_(const std::string &command,
                      std::function<void(const PendingCommand &, bool)> callback = nullptr);
@@ -348,6 +392,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value);
   void publish_text_sensor_state_(text_sensor::TextSensor *sensor, const std::string &state);
   bool is_valid_subscription_argument_(const std::string &argument) const;
+  bool has_error_binary_sensors_() const;
 
   // Entity pointers registered via the setter functions above.  We guard every
   // usage with a nullptr check so optional sensors don't consume memory when
@@ -404,6 +449,14 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSEPendingAuthorizationBinarySensor *pending_authorization_binary_sensor_{nullptr};
   ESP32EVSEWifiConnectedBinarySensor *wifi_connected_binary_sensor_{nullptr};
   ESP32EVSEChargingLimitReachedBinarySensor *charging_limit_reached_binary_sensor_{nullptr};
+  ESP32EVSEPilotFaultBinarySensor *pilot_fault_binary_sensor_{nullptr};
+  ESP32EVSEDiodeShortBinarySensor *diode_short_binary_sensor_{nullptr};
+  ESP32EVSELockFaultBinarySensor *lock_fault_binary_sensor_{nullptr};
+  ESP32EVSEUnlockFaultBinarySensor *unlock_fault_binary_sensor_{nullptr};
+  ESP32EVSERCMTriggeredBinarySensor *rcm_triggered_binary_sensor_{nullptr};
+  ESP32EVSERCMSelfTestFaultBinarySensor *rcm_self_test_fault_binary_sensor_{nullptr};
+  ESP32EVSETemperatureHighFaultBinarySensor *temperature_high_fault_binary_sensor_{nullptr};
+  ESP32EVSETemperatureFaultBinarySensor *temperature_fault_binary_sensor_{nullptr};
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
@@ -474,6 +527,38 @@ class ESP32EVSEWifiConnectedBinarySensor : public binary_sensor::BinarySensor,
                                            public Parented<ESP32EVSEComponent> {};
 
 class ESP32EVSEChargingLimitReachedBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSEPilotFaultBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSEDiodeShortBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSELockFaultBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSEUnlockFaultBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSERCMTriggeredBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSERCMSelfTestFaultBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSETemperatureHighFaultBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSETemperatureFaultBinarySensor
     : public binary_sensor::BinarySensor,
       public Parented<ESP32EVSEComponent> {};
 

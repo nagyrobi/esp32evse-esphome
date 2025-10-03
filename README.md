@@ -141,10 +141,42 @@ binary_sensor:
       name: "EVSE Wi-Fi Connected"
     charging_limit_reached:
       name: "EVSE Charging Limit Reached"
+    pilot_fault:
+      name: "EVSE Pilot Fault"
+    diode_short:
+      name: "EVSE Diode Short"
+    lock_fault:
+      name: "EVSE Lock Fault"
+    unlock_fault:
+      name: "EVSE Unlock Fault"
+    rcm_triggered:
+      name: "EVSE RCM Triggered"
+    rcm_self_test_fault:
+      name: "EVSE RCM Self-Test Fault"
+    temperature_high_fault:
+      name: "EVSE Temperature High Fault"
+    temperature_fault:
+      name: "EVSE Temperature Fault"
 ```
 
 The ``charging_limit_reached`` binary sensor turns on when the EVSE stopped charging because a configured limit (time, energy, or
 under-power) was met, allowing automations to react immediately.
+
+The error sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. They default to the ``problem`` device
+class and ``diagnostic`` entity category so they automatically sort with other troubleshooting aides in Home Assistant. To receive
+updates as soon as the controller detects a fault, subscribe the device to pushes:
+
+```yaml
+button:
+  - platform: template
+    name: "EVSE Error Subscribe"
+    on_press:
+      then:
+        - esp32evse.error.subscribe:
+            period: 5s
+```
+
+Set ``period: never`` to cancel the subscription once you no longer need frequent updates.
 
 ### Numbers
 

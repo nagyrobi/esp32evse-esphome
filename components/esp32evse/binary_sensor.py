@@ -12,7 +12,11 @@ from esphome.components import binary_sensor
 # Use ESPHome's validation helpers to make sure optional configuration blocks
 # are well formed before compiling the firmware.
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import (
+    DEVICE_CLASS_CONNECTIVITY,
+    DEVICE_CLASS_PROBLEM,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+)
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -29,10 +33,42 @@ ESP32EVSEWifiConnectedBinarySensor = esp32evse_ns.class_(
 ESP32EVSEChargingLimitReachedBinarySensor = esp32evse_ns.class_(
     "ESP32EVSEChargingLimitReachedBinarySensor", binary_sensor.BinarySensor
 )
+ESP32EVSEPilotFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSEPilotFaultBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSEDiodeShortBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSEDiodeShortBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSELockFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSELockFaultBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSEUnlockFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSEUnlockFaultBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSERCMTriggeredBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSERCMTriggeredBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSERCMSelfTestFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSERCMSelfTestFaultBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSETemperatureHighFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSETemperatureHighFaultBinarySensor", binary_sensor.BinarySensor
+)
+ESP32EVSETemperatureFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSETemperatureFaultBinarySensor", binary_sensor.BinarySensor
+)
 
 CONF_PENDING_AUTHORIZATION = "pending_authorization"
 CONF_WIFI_CONNECTED = "wifi_connected"
 CONF_CHARGING_LIMIT_REACHED = "charging_limit_reached"
+CONF_PILOT_FAULT = "pilot_fault"
+CONF_DIODE_SHORT = "diode_short"
+CONF_LOCK_FAULT = "lock_fault"
+CONF_UNLOCK_FAULT = "unlock_fault"
+CONF_RCM_TRIGGERED = "rcm_triggered"
+CONF_RCM_SELF_TEST_FAULT = "rcm_self_test_fault"
+CONF_TEMPERATURE_HIGH_FAULT = "temperature_high_fault"
+CONF_TEMPERATURE_FAULT = "temperature_fault"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -60,12 +96,62 @@ CONFIG_SCHEMA = cv.All(
                 ESP32EVSEChargingLimitReachedBinarySensor,
                 icon="mdi:battery-check-outline",
             ),
+            cv.Optional(CONF_PILOT_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSEPilotFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_DIODE_SHORT): binary_sensor.binary_sensor_schema(
+                ESP32EVSEDiodeShortBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_LOCK_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSELockFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_UNLOCK_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSEUnlockFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_RCM_TRIGGERED): binary_sensor.binary_sensor_schema(
+                ESP32EVSERCMTriggeredBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_RCM_SELF_TEST_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSERCMSelfTestFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_TEMPERATURE_HIGH_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSETemperatureHighFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_TEMPERATURE_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSETemperatureFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     ),
     # Require that at least one sensor is configured to avoid creating empty
     # YAML blocks that would do nothing.
     cv.has_at_least_one_key(
-        CONF_PENDING_AUTHORIZATION, CONF_WIFI_CONNECTED, CONF_CHARGING_LIMIT_REACHED
+        CONF_PENDING_AUTHORIZATION,
+        CONF_WIFI_CONNECTED,
+        CONF_CHARGING_LIMIT_REACHED,
+        CONF_PILOT_FAULT,
+        CONF_DIODE_SHORT,
+        CONF_LOCK_FAULT,
+        CONF_UNLOCK_FAULT,
+        CONF_RCM_TRIGGERED,
+        CONF_RCM_SELF_TEST_FAULT,
+        CONF_TEMPERATURE_HIGH_FAULT,
+        CONF_TEMPERATURE_FAULT,
     ),
 )
 
@@ -93,3 +179,17 @@ async def to_code(config):
         sens = await binary_sensor.new_binary_sensor(limit_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_charging_limit_reached_binary_sensor(sens))
+    for key, setter in (
+        (CONF_PILOT_FAULT, parent.set_pilot_fault_binary_sensor),
+        (CONF_DIODE_SHORT, parent.set_diode_short_binary_sensor),
+        (CONF_LOCK_FAULT, parent.set_lock_fault_binary_sensor),
+        (CONF_UNLOCK_FAULT, parent.set_unlock_fault_binary_sensor),
+        (CONF_RCM_TRIGGERED, parent.set_rcm_triggered_binary_sensor),
+        (CONF_RCM_SELF_TEST_FAULT, parent.set_rcm_self_test_fault_binary_sensor),
+        (CONF_TEMPERATURE_HIGH_FAULT, parent.set_temperature_high_fault_binary_sensor),
+        (CONF_TEMPERATURE_FAULT, parent.set_temperature_fault_binary_sensor),
+    ):
+        if sensor_config := config.get(key):
+            sens = await binary_sensor.new_binary_sensor(sensor_config)
+            await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
+            cg.add(setter(sens))
