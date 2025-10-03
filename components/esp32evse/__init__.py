@@ -43,10 +43,6 @@ ESP32EVSEUnsubscribeAllAction = esp32evse_ns.class_(
     automation.Action,
     cg.Parented.template(ESP32EVSEComponent),
 )
-ESP32EVSEReadyTrigger = esp32evse_ns.class_(
-    "ESP32EVSEReadyTrigger",
-    automation.Trigger.template(),
-)
 
 CONF_ESP32EVSE_ID = "esp32evse_id"
 
@@ -56,8 +52,6 @@ MAX_UPDATE_INTERVAL_MS = 600_000
 CONF_PERIOD = "period"
 
 _REGISTERED_COMPONENT_IDS = []
-
-_READY_TRIGGER_SCHEMA = cv.Schema({cv.Optional(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent)})
 
 
 def _normalize_subscription_period(value):
@@ -167,18 +161,6 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     if config[CONF_ID] not in _REGISTERED_COMPONENT_IDS:
         _REGISTERED_COMPONENT_IDS.append(config[CONF_ID])
-
-
-@automation.register_trigger("esp32evse.on_ready", ESP32EVSEReadyTrigger, _READY_TRIGGER_SCHEMA)
-async def esp32evse_on_ready_trigger_to_code(config, action_id, template_arg, args):
-    if config is None:
-        config = {}
-    component_id = _resolve_parent_id(config)
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, component_id)
-    parent = await cg.get_variable(component_id)
-    cg.add(parent.add_ready_trigger(var))
-    return var
 
 
 _SUBSCRIPTION_TARGETS = {
