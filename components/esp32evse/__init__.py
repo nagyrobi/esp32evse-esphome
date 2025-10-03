@@ -185,6 +185,7 @@ _SUBSCRIPTION_TARGETS = {
     "emeter_power": '"+EMETERPOWER"',
     "emeter_session_time": '"+EMETERSESTIME"',
     "emeter_charging_time": '"+EMETERCHTIME"',
+    "uptime": '"+UPTIME"',
     "heap": '"+HEAP"',
     "energy_consumption": '"+EMETERCONSUM"',
     "total_energy_consumption": '"+EMETERTOTCONSUM"',
@@ -194,6 +195,7 @@ _SUBSCRIPTION_TARGETS = {
     # Binary sensors
     "pending_authorization": '"+PENDAUTH"',
     "wifi_connected": '"+WIFISTACONN"',
+    "charging_limit_reached": '"+LIMREACH"',
     # Numbers
     "charging_current": '"+CHCUR"',
     "default_charging_current": '"+DEFCHCUR"',

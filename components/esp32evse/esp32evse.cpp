@@ -122,6 +122,8 @@ void ESP32EVSEComponent::setup() {
       this->request_emeter_session_time_update();
     if (this->emeter_charging_time_sensor_ != nullptr)
       this->request_emeter_charging_time_update();
+    if (this->uptime_sensor_ != nullptr)
+      this->request_uptime_update();
     if (this->chip_text_sensor_ != nullptr)
       this->request_chip_update();
     if (this->version_text_sensor_ != nullptr)
@@ -160,6 +162,8 @@ void ESP32EVSEComponent::setup() {
       this->request_current_update();
     if (this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr)
       this->request_wifi_status_update();
+    if (this->charging_limit_reached_binary_sensor_ != nullptr)
+      this->request_charging_limit_reached_update();
     if (this->default_charging_current_number_ != nullptr)
       this->request_default_charging_current_update();
     if (this->maximum_charging_current_number_ != nullptr)
@@ -281,6 +285,8 @@ void ESP32EVSEComponent::update() {
   if (this->emeter_charging_time_sensor_ != nullptr &&
       !this->should_skip_poll_(FreshnessSlot::EMETER_CHARGING_TIME))
     this->request_emeter_charging_time_update();
+  if (this->uptime_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::UPTIME))
+    this->request_uptime_update();
   if ((this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr) &&
       !this->should_skip_poll_(FreshnessSlot::HEAP))
     this->request_heap_update();
@@ -301,6 +307,9 @@ void ESP32EVSEComponent::update() {
   if ((this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr) &&
       !this->should_skip_poll_(FreshnessSlot::WIFI_STATUS))
     this->request_wifi_status_update();
+  if (this->charging_limit_reached_binary_sensor_ != nullptr &&
+      !this->should_skip_poll_(FreshnessSlot::CHARGING_LIMIT_REACHED))
+    this->request_charging_limit_reached_update();
   if (this->available_switch_ != nullptr && !this->should_skip_poll_(FreshnessSlot::AVAILABLE))
     this->request_available_update();
   if (this->request_authorization_switch_ != nullptr &&
@@ -405,6 +414,7 @@ void ESP32EVSEComponent::request_emeter_session_time_update() {
 void ESP32EVSEComponent::request_emeter_charging_time_update() {
   this->send_command_("AT+EMETERCHTIME?");
 }
+void ESP32EVSEComponent::request_uptime_update() { this->send_command_("AT+UPTIME?"); }
 void ESP32EVSEComponent::request_chip_update() { this->send_command_("AT+CHIP?"); }
 void ESP32EVSEComponent::request_version_update() { this->send_command_("AT+VER?"); }
 void ESP32EVSEComponent::request_idf_version_update() { this->send_command_("AT+IDFVER?"); }
@@ -457,6 +467,9 @@ void ESP32EVSEComponent::request_default_under_power_limit_update() {
 }
 void ESP32EVSEComponent::request_pending_authorization_update() {
   this->send_command_("AT+PENDAUTH?");
+}
+void ESP32EVSEComponent::request_charging_limit_reached_update() {
+  this->send_command_("AT+LIMREACH?");
 }
 
 // Translate ESPHome entity state changes into AT commands.
@@ -734,6 +747,11 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     this->update_emeter_charging_time_(time);
     return;
   }
+  if (const char *value = value_after_prefix(line, "+UPTIME")) {
+    uint32_t seconds = static_cast<uint32_t>(strtoul(value, nullptr, 10));
+    this->update_uptime_(seconds);
+    return;
+  }
   if (const char *value = value_after_prefix(line, "+CHIP")) {
     std::string chip_info = trim_copy(value);
     auto chip_parts = split_and_trim(chip_info);
@@ -935,6 +953,11 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     this->update_default_under_power_limit_(val);
     return;
   }
+  if (const char *value = value_after_prefix(line, "+LIMREACH")) {
+    int val = atoi(value);
+    this->update_charging_limit_reached_(val == 1);
+    return;
+  }
   if (const char *value = value_after_prefix(line, "+PENDAUTH")) {
     int val = atoi(value);
     this->update_pending_authorization_(val == 1);
@@ -1069,6 +1092,13 @@ void ESP32EVSEComponent::update_emeter_charging_time_(uint32_t time_s) {
   this->mark_response_received_(FreshnessSlot::EMETER_CHARGING_TIME);
   if (this->emeter_charging_time_sensor_ != nullptr) {
     this->emeter_charging_time_sensor_->publish_state(time_s);
+  }
+}
+
+void ESP32EVSEComponent::update_uptime_(uint32_t seconds) {
+  this->mark_response_received_(FreshnessSlot::UPTIME);
+  if (this->uptime_sensor_ != nullptr) {
+    this->uptime_sensor_->publish_state(seconds);
   }
 }
 
@@ -1294,6 +1324,13 @@ void ESP32EVSEComponent::update_pending_authorization_(bool pending) {
   this->mark_response_received_(FreshnessSlot::PENDING_AUTHORIZATION);
   if (this->pending_authorization_binary_sensor_ != nullptr) {
     this->pending_authorization_binary_sensor_->publish_state(pending);
+  }
+}
+
+void ESP32EVSEComponent::update_charging_limit_reached_(bool reached) {
+  this->mark_response_received_(FreshnessSlot::CHARGING_LIMIT_REACHED);
+  if (this->charging_limit_reached_binary_sensor_ != nullptr) {
+    this->charging_limit_reached_binary_sensor_->publish_state(reached);
   }
 }
 

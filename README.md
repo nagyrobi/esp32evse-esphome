@@ -88,6 +88,8 @@ sensor:
       name: "EVSE Heap Used"
     heap_total:
       name: "EVSE Heap Total"
+    uptime:
+      name: "EVSE Uptime"
 ```
 If your installation only uses a single temperature sensor, expose it via the combined ``temperature`` key instead of the individual high/low entries:
 
@@ -95,6 +97,9 @@ If your installation only uses a single temperature sensor, expose it via the co
     temperature:
       name: "EVSE Temperature"
 ```
+
+The optional ``uptime`` sensor surfaces how long the EVSE firmware has been running since the last reboot, which is useful for
+diagnostics and correlating watchdog resets.
 
 ### Switches
 
@@ -134,7 +139,12 @@ binary_sensor:
       name: "EVSE Pending Authorization"
     wifi_connected:
       name: "EVSE Wi-Fi Connected"
+    charging_limit_reached:
+      name: "EVSE Charging Limit Reached"
 ```
+
+The ``charging_limit_reached`` binary sensor turns on when the EVSE stopped charging because a configured limit (time, energy, or
+under-power) was met, allowing automations to react immediately.
 
 ### Numbers
 
@@ -235,5 +245,9 @@ reports them together. For example, ``esp32evse.temperature.subscribe`` drives
 both ``temperature_high`` and ``temperature_low``, ``esp32evse.heap.subscribe``
 updates ``heap_used`` and ``heap_total``, and the ``esp32evse.voltage.subscribe`` and
 ``esp32evse.current.subscribe`` actions publish all phase-specific measurements.
+
+Subscriptions are also available for the new entities: ``esp32evse.uptime.subscribe``
+queries or follows the EVSE uptime, while ``esp32evse.charging_limit_reached.subscribe``
+tracks push notifications when a charging limit trips.
 
 

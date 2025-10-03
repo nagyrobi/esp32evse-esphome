@@ -34,6 +34,7 @@ class ESP32EVSEResetButton;
 class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
+class ESP32EVSEChargingLimitReachedBinarySensor;
 
 template<typename... Ts>
 class ESP32EVSEManagedSubscriptionAction;
@@ -149,6 +150,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void set_emeter_charging_time_sensor(sensor::Sensor *sensor) {
     this->emeter_charging_time_sensor_ = sensor;
   }
+  void set_uptime_sensor(sensor::Sensor *sensor) { this->uptime_sensor_ = sensor; }
 
   void set_reset_button(ESP32EVSEResetButton *btn) { this->reset_button_ = btn; }
   void set_authorize_button(ESP32EVSEAuthorizeButton *btn) { this->authorize_button_ = btn; }
@@ -158,6 +160,10 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   }
   void set_wifi_connected_binary_sensor(ESP32EVSEWifiConnectedBinarySensor *bs) {
     this->wifi_connected_binary_sensor_ = bs;
+  }
+  void set_charging_limit_reached_binary_sensor(
+      ESP32EVSEChargingLimitReachedBinarySensor *bs) {
+    this->charging_limit_reached_binary_sensor_ = bs;
   }
 
   // Methods that enqueue UART requests to refresh EVSE state.  These are called
@@ -170,6 +176,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_emeter_power_update();
   void request_emeter_session_time_update();
   void request_emeter_charging_time_update();
+  void request_uptime_update();
   void request_chip_update();
   void request_version_update();
   void request_idf_version_update();
@@ -197,6 +204,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_under_power_limit_update();
   void request_default_under_power_limit_update();
   void request_pending_authorization_update();
+  void request_charging_limit_reached_update();
 
   // Writers mirror user initiated actions back to the EVSE controller.
   void write_enable_state(bool enabled);
@@ -227,6 +235,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     EMETER_POWER,
     EMETER_SESSION_TIME,
     EMETER_CHARGING_TIME,
+    UPTIME,
     HEAP,
     ENERGY_CONSUMPTION,
     TOTAL_ENERGY_CONSUMPTION,
@@ -235,6 +244,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     WIFI_STATUS,
     AVAILABLE,
     REQUEST_AUTHORIZATION,
+    CHARGING_LIMIT_REACHED,
     EMETER_THREE_PHASE,
     DEFAULT_CHARGING_CURRENT,
     MAXIMUM_CHARGING_CURRENT,
@@ -298,6 +308,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_emeter_power_(uint32_t power_w);
   void update_emeter_session_time_(uint32_t time_s);
   void update_emeter_charging_time_(uint32_t time_s);
+  void update_uptime_(uint32_t seconds);
   void update_chip_(const std::string &chip);
   void update_version_(const std::string &version);
   void update_idf_version_(const std::string &idf_version);
@@ -326,6 +337,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_under_power_limit_(float value);
   void update_default_under_power_limit_(float value);
   void update_pending_authorization_(bool pending);
+  void update_charging_limit_reached_(bool reached);
 
   bool send_command_(const std::string &command,
                      std::function<void(const PendingCommand &, bool)> callback = nullptr);
@@ -384,12 +396,14 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   sensor::Sensor *emeter_power_sensor_{nullptr};
   sensor::Sensor *emeter_session_time_sensor_{nullptr};
   sensor::Sensor *emeter_charging_time_sensor_{nullptr};
+  sensor::Sensor *uptime_sensor_{nullptr};
 
   ESP32EVSEResetButton *reset_button_{nullptr};
   ESP32EVSEAuthorizeButton *authorize_button_{nullptr};
 
   ESP32EVSEPendingAuthorizationBinarySensor *pending_authorization_binary_sensor_{nullptr};
   ESP32EVSEWifiConnectedBinarySensor *wifi_connected_binary_sensor_{nullptr};
+  ESP32EVSEChargingLimitReachedBinarySensor *charging_limit_reached_binary_sensor_{nullptr};
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
@@ -458,6 +472,10 @@ class ESP32EVSEPendingAuthorizationBinarySensor
 
 class ESP32EVSEWifiConnectedBinarySensor : public binary_sensor::BinarySensor,
                                            public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSEChargingLimitReachedBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
 
 template<typename... Ts>
 class ESP32EVSEManagedSubscriptionAction : public Action<Ts...>, public Parented<ESP32EVSEComponent> {
