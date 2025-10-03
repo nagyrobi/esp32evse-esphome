@@ -172,6 +172,7 @@ async def to_code(config):
 
 
 @_register_ready_trigger("esp32evse.on_ready", ESP32EVSEReadyTrigger, _READY_TRIGGER_SCHEMA)
+@automation.register_trigger("esp32evse.on_ready", ESP32EVSEReadyTrigger, _READY_TRIGGER_SCHEMA)
 async def esp32evse_on_ready_trigger_to_code(config, action_id, template_arg, args):
     if config is None:
         config = {}
@@ -217,6 +218,7 @@ _SUBSCRIPTION_TARGETS = {
     "pending_authorization": '"+PENDAUTH"',
     "wifi_connected": '"+WIFISTACONN"',
     "charging_limit_reached": '"+LIMREACH"',
+    "error": '"+ERROR"',
     # Numbers
     "charging_current": '"+CHCUR"',
     "default_charging_current": '"+DEFCHCUR"',
