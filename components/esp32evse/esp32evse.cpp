@@ -111,6 +111,8 @@ void ESP32EVSEComponent::setup() {
     this->request_state_update();
     this->request_enable_update();
     this->request_pending_authorization_update();
+    if (this->has_error_binary_sensors_())
+      this->request_error_flags_update();
 
     if (this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr)
       this->request_temperature_update();
@@ -270,6 +272,8 @@ void ESP32EVSEComponent::update() {
     this->request_enable_update();
   if (!this->should_skip_poll_(FreshnessSlot::PENDING_AUTHORIZATION))
     this->request_pending_authorization_update();
+  if (this->has_error_binary_sensors_() && !this->should_skip_poll_(FreshnessSlot::ERROR_FLAGS))
+    this->request_error_flags_update();
 
   if ((this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr) &&
       !this->should_skip_poll_(FreshnessSlot::TEMPERATURE))
@@ -471,6 +475,8 @@ void ESP32EVSEComponent::request_pending_authorization_update() {
 void ESP32EVSEComponent::request_charging_limit_reached_update() {
   this->send_command_("AT+LIMREACH?");
 }
+
+void ESP32EVSEComponent::request_error_flags_update() { this->send_command_("AT+ERROR?"); }
 
 // Translate ESPHome entity state changes into AT commands.
 void ESP32EVSEComponent::write_enable_state(bool enabled) {
@@ -958,6 +964,11 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     this->update_charging_limit_reached_(val == 1);
     return;
   }
+  if (const char *value = value_after_prefix(line, "+ERROR")) {
+    uint32_t mask = static_cast<uint32_t>(strtoul(value, nullptr, 0));
+    this->update_error_flags_(mask);
+    return;
+  }
   if (const char *value = value_after_prefix(line, "+PENDAUTH")) {
     int val = atoi(value);
     this->update_pending_authorization_(val == 1);
@@ -1067,6 +1078,17 @@ void ESP32EVSEComponent::publish_text_sensor_state_(text_sensor::TextSensor *sen
   if (sensor->has_state() && sensor->state == state)
     return;
   sensor->publish_state(state);
+}
+
+bool ESP32EVSEComponent::has_error_binary_sensors_() const {
+  return this->pilot_fault_binary_sensor_ != nullptr ||
+         this->diode_short_binary_sensor_ != nullptr ||
+         this->lock_fault_binary_sensor_ != nullptr ||
+         this->unlock_fault_binary_sensor_ != nullptr ||
+         this->rcm_triggered_binary_sensor_ != nullptr ||
+         this->rcm_self_test_fault_binary_sensor_ != nullptr ||
+         this->temperature_high_fault_binary_sensor_ != nullptr ||
+         this->temperature_fault_binary_sensor_ != nullptr;
 }
 
 void ESP32EVSEComponent::update_charging_current_(uint16_t value_tenths) {
@@ -1332,6 +1354,26 @@ void ESP32EVSEComponent::update_charging_limit_reached_(bool reached) {
   if (this->charging_limit_reached_binary_sensor_ != nullptr) {
     this->charging_limit_reached_binary_sensor_->publish_state(reached);
   }
+}
+
+void ESP32EVSEComponent::update_error_flags_(uint32_t mask) {
+  this->mark_response_received_(FreshnessSlot::ERROR_FLAGS);
+  if (this->pilot_fault_binary_sensor_ != nullptr)
+    this->pilot_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_PILOT_FAULT) != 0u);
+  if (this->diode_short_binary_sensor_ != nullptr)
+    this->diode_short_binary_sensor_->publish_state((mask & ERROR_FLAG_DIODE_SHORT) != 0u);
+  if (this->lock_fault_binary_sensor_ != nullptr)
+    this->lock_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_LOCK_FAULT) != 0u);
+  if (this->unlock_fault_binary_sensor_ != nullptr)
+    this->unlock_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_UNLOCK_FAULT) != 0u);
+  if (this->rcm_triggered_binary_sensor_ != nullptr)
+    this->rcm_triggered_binary_sensor_->publish_state((mask & ERROR_FLAG_RCM_TRIGGERED) != 0u);
+  if (this->rcm_self_test_fault_binary_sensor_ != nullptr)
+    this->rcm_self_test_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_RCM_SELF_TEST_FAULT) != 0u);
+  if (this->temperature_high_fault_binary_sensor_ != nullptr)
+    this->temperature_high_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_TEMPERATURE_HIGH) != 0u);
+  if (this->temperature_fault_binary_sensor_ != nullptr)
+    this->temperature_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_TEMPERATURE_FAULT) != 0u);
 }
 
 // When a write command fails we re-request the value so the UI reflects the
