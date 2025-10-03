@@ -235,6 +235,7 @@ _SUBSCRIPTION_TARGETS = {
     "pending_authorization": '"+PENDAUTH"',
     "wifi_connected": '"+WIFISTACONN"',
     "charging_limit_reached": '"+LIMREACH"',
+    "error": '"+ERROR"',
     # Numbers
     "charging_current": '"+CHCUR"',
     "default_charging_current": '"+DEFCHCUR"',
