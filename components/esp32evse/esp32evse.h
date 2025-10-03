@@ -21,7 +21,6 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <vector>
 
 namespace esphome {
 namespace esp32evse {
@@ -36,7 +35,6 @@ class ESP32EVSEAuthorizeButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
 class ESP32EVSEChargingLimitReachedBinarySensor;
-class ESP32EVSEReadyTrigger;
 class ESP32EVSEPilotFaultBinarySensor;
 class ESP32EVSEDiodeShortBinarySensor;
 class ESP32EVSELockFaultBinarySensor;
@@ -240,8 +238,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_pending_authorization_update();
   void request_charging_limit_reached_update();
   void request_error_flags_update();
-
-  void add_ready_trigger(ESP32EVSEReadyTrigger *trigger);
 
   // Writers mirror user initiated actions back to the EVSE controller.
   void write_enable_state(bool enabled);
@@ -469,7 +465,6 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   // Per-slot timestamps that power the freshness tracker.  A ``0`` entry means
   // the slot has never received a response and should not suppress polling yet.
   std::array<uint32_t, static_cast<size_t>(FreshnessSlot::SLOT_COUNT)> last_response_millis_{};
-  std::vector<ESP32EVSEReadyTrigger *> ready_triggers_;
 };
 
 // Lightweight wrappers for the ESPHome entity classes.  They forward state
@@ -535,10 +530,6 @@ class ESP32EVSEChargingLimitReachedBinarySensor
     : public binary_sensor::BinarySensor,
       public Parented<ESP32EVSEComponent> {};
 
-class ESP32EVSEReadyTrigger : public Trigger<>, public Parented<ESP32EVSEComponent> {
- public:
-  void notify() { this->trigger(); }
-};
 class ESP32EVSEPilotFaultBinarySensor
     : public binary_sensor::BinarySensor,
       public Parented<ESP32EVSEComponent> {};
