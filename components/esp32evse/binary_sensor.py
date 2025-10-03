@@ -16,7 +16,7 @@ from esphome.const import (
     DEVICE_CLASS_CONNECTIVITY,
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_TRIGGER_ON_INITIAL_STATE,
+    CONF_PUBLISH_INITIAL_STATE,
 )
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
@@ -73,12 +73,12 @@ CONF_TEMPERATURE_FAULT = "temperature_fault"
 
 
 def _with_default_trigger(config: dict) -> dict:
-    """Ensure binary sensors trigger automations on their initial state."""
+    """Ensure binary sensors publish their initial state when created."""
 
-    if CONF_TRIGGER_ON_INITIAL_STATE in config:
+    if CONF_PUBLISH_INITIAL_STATE in config:
         return config
     # Copy to avoid mutating the validated configuration that ESPHome stores.
-    return {**config, CONF_TRIGGER_ON_INITIAL_STATE: True}
+    return {**config, CONF_PUBLISH_INITIAL_STATE: True}
 
 
 CONFIG_SCHEMA = cv.All(
