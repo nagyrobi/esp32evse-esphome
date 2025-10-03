@@ -54,11 +54,11 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:check-network-outline",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            # Indicate when the EVSE enforced a configured charging limit.
+            # Indicate when the EVSE has finished supplying the energy corresponding 
+            # to the configured charging limit.
             cv.Optional(CONF_CHARGING_LIMIT_REACHED): binary_sensor.binary_sensor_schema(
                 ESP32EVSEChargingLimitReachedBinarySensor,
-                icon="mdi:gauge-full",
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon="mdi:battery-check-outline",
             ),
         }
     ),
