@@ -167,37 +167,70 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   void set_pending_authorization_binary_sensor(ESP32EVSEPendingAuthorizationBinarySensor *bs) {
     this->pending_authorization_binary_sensor_ = bs;
+    if (bs != nullptr && this->pending_authorization_state_.has_value()) {
+      bs->publish_state(*this->pending_authorization_state_);
+    }
   }
   void set_wifi_connected_binary_sensor(ESP32EVSEWifiConnectedBinarySensor *bs) {
     this->wifi_connected_binary_sensor_ = bs;
+    if (bs != nullptr && this->wifi_connected_state_.has_value()) {
+      bs->publish_state(*this->wifi_connected_state_);
+    }
   }
   void set_charging_limit_reached_binary_sensor(
       ESP32EVSEChargingLimitReachedBinarySensor *bs) {
     this->charging_limit_reached_binary_sensor_ = bs;
+    if (bs != nullptr && this->charging_limit_reached_state_.has_value()) {
+      bs->publish_state(*this->charging_limit_reached_state_);
+    }
   }
   void set_pilot_fault_binary_sensor(ESP32EVSEPilotFaultBinarySensor *bs) {
     this->pilot_fault_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_PILOT_FAULT) != 0u);
+    }
   }
   void set_diode_short_binary_sensor(ESP32EVSEDiodeShortBinarySensor *bs) {
     this->diode_short_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_DIODE_SHORT) != 0u);
+    }
   }
   void set_lock_fault_binary_sensor(ESP32EVSELockFaultBinarySensor *bs) {
     this->lock_fault_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_LOCK_FAULT) != 0u);
+    }
   }
   void set_unlock_fault_binary_sensor(ESP32EVSEUnlockFaultBinarySensor *bs) {
     this->unlock_fault_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_UNLOCK_FAULT) != 0u);
+    }
   }
   void set_rcm_triggered_binary_sensor(ESP32EVSERCMTriggeredBinarySensor *bs) {
     this->rcm_triggered_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_RCM_TRIGGERED) != 0u);
+    }
   }
   void set_rcm_self_test_fault_binary_sensor(ESP32EVSERCMSelfTestFaultBinarySensor *bs) {
     this->rcm_self_test_fault_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_RCM_SELF_TEST_FAULT) != 0u);
+    }
   }
   void set_temperature_high_fault_binary_sensor(ESP32EVSETemperatureHighFaultBinarySensor *bs) {
     this->temperature_high_fault_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_TEMPERATURE_HIGH) != 0u);
+    }
   }
   void set_temperature_fault_binary_sensor(ESP32EVSETemperatureFaultBinarySensor *bs) {
     this->temperature_fault_binary_sensor_ = bs;
+    if (bs != nullptr && this->error_flag_mask_.has_value()) {
+      bs->publish_state((*this->error_flag_mask_ & ERROR_FLAG_TEMPERATURE_FAULT) != 0u);
+    }
   }
 
   // Methods that enqueue UART requests to refresh EVSE state.  These are called
@@ -459,6 +492,11 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSERCMSelfTestFaultBinarySensor *rcm_self_test_fault_binary_sensor_{nullptr};
   ESP32EVSETemperatureHighFaultBinarySensor *temperature_high_fault_binary_sensor_{nullptr};
   ESP32EVSETemperatureFaultBinarySensor *temperature_fault_binary_sensor_{nullptr};
+
+  std::optional<bool> pending_authorization_state_{};
+  std::optional<bool> wifi_connected_state_{};
+  std::optional<bool> charging_limit_reached_state_{};
+  std::optional<uint32_t> error_flag_mask_{};
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
