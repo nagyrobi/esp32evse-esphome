@@ -713,6 +713,12 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     this->handle_ack_(false);
     return;
   }
+  if (line == "RDY") {
+    ESP_LOGI(TAG, "EVSE ready to accept commands");
+    if (this->ready_trigger_ != nullptr)
+      this->ready_trigger_->trigger();
+    return;
+  }
   if (const char *value = value_after_prefix(line, "+STATE")) {
     int state_value = atoi(value);
     this->update_state_(state_value);
