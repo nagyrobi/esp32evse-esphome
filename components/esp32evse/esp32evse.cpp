@@ -185,12 +185,6 @@ void ESP32EVSEComponent::setup() {
   });
 }
 
-void ESP32EVSEComponent::add_ready_trigger(ESP32EVSEReadyTrigger *trigger) {
-  if (trigger == nullptr)
-    return;
-  this->ready_triggers_.push_back(trigger);
-}
-
 // Process incoming UART bytes and drive the command queue.  This keeps the ESPHome
 // scheduler responsive even while waiting for EVSE acknowledgements.
 void ESP32EVSEComponent::loop() {
@@ -717,14 +711,6 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   }
   if (line == "ERROR") {
     this->handle_ack_(false);
-    return;
-  }
-  if (line == "RDY") {
-    ESP_LOGI(TAG, "EVSE ready to accept commands");
-    for (auto *trigger : this->ready_triggers_) {
-      if (trigger != nullptr)
-        trigger->notify();
-    }
     return;
   }
   if (const char *value = value_after_prefix(line, "+STATE")) {
