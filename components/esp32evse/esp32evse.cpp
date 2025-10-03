@@ -1010,7 +1010,7 @@ void ESP32EVSEComponent::process_next_command_() {
 
   ESP_LOGV(TAG, "Sending command: %s", front.command.c_str());
   this->write_str(front.command.c_str());
-  this->write_str("\r\n");
+  this->write_str("\n");
   front.start_time = millis();
   front.sent = true;
 }
