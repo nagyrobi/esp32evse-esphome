@@ -26,9 +26,13 @@ ESP32EVSEPendingAuthorizationBinarySensor = esp32evse_ns.class_(
 ESP32EVSEWifiConnectedBinarySensor = esp32evse_ns.class_(
     "ESP32EVSEWifiConnectedBinarySensor", binary_sensor.BinarySensor
 )
+ESP32EVSEChargingLimitReachedBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSEChargingLimitReachedBinarySensor", binary_sensor.BinarySensor
+)
 
 CONF_PENDING_AUTHORIZATION = "pending_authorization"
 CONF_WIFI_CONNECTED = "wifi_connected"
+CONF_CHARGING_LIMIT_REACHED = "charging_limit_reached"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -50,11 +54,19 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:check-network-outline",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            # Indicate when the EVSE enforced a configured charging limit.
+            cv.Optional(CONF_CHARGING_LIMIT_REACHED): binary_sensor.binary_sensor_schema(
+                ESP32EVSEChargingLimitReachedBinarySensor,
+                icon="mdi:gauge-full",
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     ),
     # Require that at least one sensor is configured to avoid creating empty
     # YAML blocks that would do nothing.
-    cv.has_at_least_one_key(CONF_PENDING_AUTHORIZATION, CONF_WIFI_CONNECTED),
+    cv.has_at_least_one_key(
+        CONF_PENDING_AUTHORIZATION, CONF_WIFI_CONNECTED, CONF_CHARGING_LIMIT_REACHED
+    ),
 )
 
 
@@ -75,3 +87,9 @@ async def to_code(config):
         sens = await binary_sensor.new_binary_sensor(wifi_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_wifi_connected_binary_sensor(sens))
+    if limit_config := config.get(CONF_CHARGING_LIMIT_REACHED):
+        # Surface the flag that signals when the EVSE stopped charging because a
+        # configured limit (time/energy/under-power) has been reached.
+        sens = await binary_sensor.new_binary_sensor(limit_config)
+        await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
+        cg.add(parent.set_charging_limit_reached_binary_sensor(sens))
