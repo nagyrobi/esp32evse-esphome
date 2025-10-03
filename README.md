@@ -149,7 +149,7 @@ binary_sensor:
       name: "EVSE Lock Fault"
     unlock_fault:
       name: "EVSE Unlock Fault"
-    rcm_triggered:
+    rcm_triggered_fault:
       name: "EVSE RCM Triggered"
     rcm_self_test_fault:
       name: "EVSE RCM Self-Test Fault"
