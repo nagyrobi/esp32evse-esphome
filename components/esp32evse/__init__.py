@@ -45,6 +45,7 @@ ESP32EVSEUnsubscribeAllAction = esp32evse_ns.class_(
 )
 
 CONF_ESP32EVSE_ID = "esp32evse_id"
+CONF_ON_READY = "on_ready"
 
 MIN_UPDATE_INTERVAL_MS = 10_000
 MAX_UPDATE_INTERVAL_MS = 600_000
@@ -129,7 +130,12 @@ def _register_component_config(config):
 # arguments, and that the component polls every 60 seconds by default while
 # allowing users to override the interval within the supported range.
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({cv.GenerateID(): cv.declare_id(ESP32EVSEComponent)})
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ESP32EVSEComponent),
+            cv.Optional(CONF_ON_READY): automation.validate_automation(single=True),
+        }
+    )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("60000ms")),
     _register_component_config,
@@ -161,6 +167,9 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     if config[CONF_ID] not in _REGISTERED_COMPONENT_IDS:
         _REGISTERED_COMPONENT_IDS.append(config[CONF_ID])
+
+    if CONF_ON_READY in config:
+        await automation.build_automation(var.get_ready_trigger(), [], config[CONF_ON_READY])
 
 
 _SUBSCRIPTION_TARGETS = {
