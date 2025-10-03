@@ -48,6 +48,8 @@ ESP32EVSEReadyTrigger = esp32evse_ns.class_(
     automation.Trigger.template(),
 )
 
+_register_ready_trigger = getattr(automation, "register_trigger", automation.register_action)
+
 CONF_ESP32EVSE_ID = "esp32evse_id"
 
 MIN_UPDATE_INTERVAL_MS = 10_000
@@ -169,6 +171,7 @@ async def to_code(config):
         _REGISTERED_COMPONENT_IDS.append(config[CONF_ID])
 
 
+@_register_ready_trigger("esp32evse.on_ready", ESP32EVSEReadyTrigger, _READY_TRIGGER_SCHEMA)
 @automation.register_trigger("esp32evse.on_ready", ESP32EVSEReadyTrigger, _READY_TRIGGER_SCHEMA)
 async def esp32evse_on_ready_trigger_to_code(config, action_id, template_arg, args):
     if config is None:

@@ -243,6 +243,8 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   void add_ready_trigger(ESP32EVSEReadyTrigger *trigger);
 
+  void add_ready_trigger(ESP32EVSEReadyTrigger *trigger);
+
   // Writers mirror user initiated actions back to the EVSE controller.
   void write_enable_state(bool enabled);
   void write_available_state(bool available);
