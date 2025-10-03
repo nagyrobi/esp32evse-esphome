@@ -16,7 +16,6 @@ from esphome.const import (
     DEVICE_CLASS_CONNECTIVITY,
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_TRIGGER_ON_INITIAL_STATE,
 )
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
@@ -70,15 +69,6 @@ CONF_RCM_TRIGGERED = "rcm_triggered_fault"
 CONF_RCM_SELF_TEST_FAULT = "rcm_self_test_fault"
 CONF_TEMPERATURE_HIGH_FAULT = "temperature_high_fault"
 CONF_TEMPERATURE_FAULT = "temperature_fault"
-
-
-def _with_default_trigger(config: dict) -> dict:
-    """Ensure binary sensors trigger automations on their initial state."""
-
-    if CONF_TRIGGER_ON_INITIAL_STATE in config:
-        return config
-    # Copy to avoid mutating the validated configuration that ESPHome stores.
-    return {**config, CONF_TRIGGER_ON_INITIAL_STATE: True}
 
 
 CONFIG_SCHEMA = cv.All(
@@ -174,25 +164,19 @@ async def to_code(config):
     if pending_config := config.get(CONF_PENDING_AUTHORIZATION):
         # The pending-authorization flag is updated whenever the EVSE expects a
         # user action (such as tapping an RFID card), so we forward its state.
-        sens = await binary_sensor.new_binary_sensor(
-            _with_default_trigger(pending_config)
-        )
+        sens = await binary_sensor.new_binary_sensor(pending_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_pending_authorization_binary_sensor(sens))
     if wifi_config := config.get(CONF_WIFI_CONNECTED):
         # Track Wi-Fi connectivity so operators can detect when the charger
         # falls offline without looking at the controller's web UI.
-        sens = await binary_sensor.new_binary_sensor(
-            _with_default_trigger(wifi_config)
-        )
+        sens = await binary_sensor.new_binary_sensor(wifi_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_wifi_connected_binary_sensor(sens))
     if limit_config := config.get(CONF_CHARGING_LIMIT_REACHED):
         # Surface the flag that signals when the EVSE stopped charging because a
         # configured limit (time/energy/under-power) has been reached.
-        sens = await binary_sensor.new_binary_sensor(
-            _with_default_trigger(limit_config)
-        )
+        sens = await binary_sensor.new_binary_sensor(limit_config)
         await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_charging_limit_reached_binary_sensor(sens))
     for key, setter in (
@@ -206,8 +190,6 @@ async def to_code(config):
         (CONF_TEMPERATURE_FAULT, parent.set_temperature_fault_binary_sensor),
     ):
         if sensor_config := config.get(key):
-            sens = await binary_sensor.new_binary_sensor(
-                _with_default_trigger(sensor_config)
-            )
+            sens = await binary_sensor.new_binary_sensor(sensor_config)
             await cg.register_parented(sens, config[CONF_ESP32EVSE_ID])
             cg.add(setter(sens))
