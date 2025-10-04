@@ -710,11 +710,12 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (line == "ERROR") {
+    ESP_LOGW(TAG, "ESP32-EVSE error response received");
     this->handle_ack_(false);
     return;
   }
   if (line == "RDY") {
-    ESP_LOGI(TAG, "EVSE ready to accept commands");
+    ESP_LOGI(TAG, "ESP32-EVSE ready to accept commands");
     if (this->ready_trigger_ != nullptr)
       this->ready_trigger_->trigger();
     return;
