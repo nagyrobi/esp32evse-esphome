@@ -160,23 +160,9 @@ binary_sensor:
 ```
 
 The ``charging_limit_reached`` binary sensor turns on when the EVSE stopped charging because a configured limit (time, energy, or
-under-power) was met, allowing automations to react immediately.
+under-power) was met.
 
-The error sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. They default to the ``problem`` device
-class and ``diagnostic`` entity category so they automatically sort with other troubleshooting aides in Home Assistant. To receive
-updates as soon as the controller detects a fault, subscribe the device to pushes:
-
-```yaml
-button:
-  - platform: template
-    name: "EVSE Error Subscribe"
-    on_press:
-      then:
-        - esp32evse.error.subscribe:
-            period: 5s
-```
-
-Set ``period: never`` to cancel the subscription once you no longer need frequent updates.
+The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. 
 
 ### Numbers
 
@@ -273,13 +259,13 @@ shot (add ``esp32evse_id: <id>`` if you host multiple EVSE components):
 ```
 
 **Note:** A few subscription actions control multiple sensors because the EVSE
-reports them together. For example, ``esp32evse.temperature.subscribe`` drives
-both ``temperature_high`` and ``temperature_low``, ``esp32evse.heap.subscribe``
-updates ``heap_used`` and ``heap_total``, and the ``esp32evse.voltage.subscribe`` and
-``esp32evse.current.subscribe`` actions publish all phase-specific measurements.
+reports them together:
 
-Subscriptions are also available for the new entities: ``esp32evse.uptime.subscribe``
-queries or follows the EVSE uptime, while ``esp32evse.charging_limit_reached.subscribe``
-tracks push notifications when a charging limit trips.
+- ``esp32evse.temperature.subscribe`` drives both ``temperature_high`` and ``temperature_low``
+- ``esp32evse.heap.subscribe`` updates ``heap_used`` and ``heap_total``
+- ``esp32evse.voltage.subscribe`` updates all phase-specific voltage measurements
+- ``esp32evse.current.subscribe`` updates all phase-specific current measurements
+- ``esp32evse.error.subscribe`` drives all the fault binary sensors
+
 
 
