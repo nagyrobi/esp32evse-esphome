@@ -101,34 +101,6 @@ If your installation only uses a single temperature sensor, expose it via the co
 The optional ``uptime`` sensor surfaces how long the EVSE firmware has been running since the last reboot, which is useful for
 diagnostics and correlating watchdog resets.
 
-### Switches
-
-```yaml
-switch:
-  - platform: esp32evse
-    esp32evse_id: evse
-    enable:
-      name: "EVSE Charging Enable"
-    available:
-      name: "EVSE Available"
-    request_authorization:
-      name: "EVSE Request Authorization"
-    three_phase_meter:
-      name: "EVSE Three-Phase Meter"
-```
-
-### Buttons
-
-```yaml
-button:
-  - platform: esp32evse
-    esp32evse_id: evse
-    authorize:
-      name: "EVSE Authorize"
-    reset:
-      name: "EVSE Restart"
-```
-
 ### Binary sensors
 
 ```yaml
@@ -164,32 +136,6 @@ under-power) was met.
 
 The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. 
 
-### Numbers
-
-```yaml
-number:
-  - platform: esp32evse
-    esp32evse_id: evse
-    charging_current:
-      name: "EVSE Charging Current"
-    default_charging_current:
-      name: "EVSE Default Charging Current"
-    maximum_charging_current:
-      name: "EVSE Maximum Charging Current"
-    consumption_limit:
-      name: "EVSE Consumption Limit"
-    default_consumption_limit:
-      name: "EVSE Default Consumption Limit"
-    charging_time_limit:
-      name: "EVSE Charging Time Limit"
-    default_charging_time_limit:
-      name: "EVSE Default Charging Time Limit"
-    under_power_limit:
-      name: "EVSE Under Power Limit"
-    default_under_power_limit:
-      name: "EVSE Default Under Power Limit"
-```
-
 ### Text sensors
 
 ```yaml
@@ -216,6 +162,60 @@ text_sensor:
       name: "EVSE Firmware Version"
     idf_version:
       name: "EVSE IDF Version"
+```
+
+### Switches
+
+```yaml
+switch:
+  - platform: esp32evse
+    esp32evse_id: evse
+    enable:
+      name: "EVSE Charging Enable"
+    available:
+      name: "EVSE Available"
+    request_authorization:
+      name: "EVSE Request Authorization"
+    three_phase_meter:
+      name: "EVSE Three-Phase Meter"
+```
+
+### Buttons
+
+```yaml
+button:
+  - platform: esp32evse
+    esp32evse_id: evse
+    authorize:
+      name: "EVSE Authorize"
+    reset:
+      name: "EVSE Restart"
+```
+
+### Number inputs
+
+```yaml
+number:
+  - platform: esp32evse
+    esp32evse_id: evse
+    charging_current:
+      name: "EVSE Charging Current"
+    default_charging_current:
+      name: "EVSE Default Charging Current"
+    maximum_charging_current:
+      name: "EVSE Maximum Charging Current"
+    consumption_limit:
+      name: "EVSE Consumption Limit"
+    default_consumption_limit:
+      name: "EVSE Default Consumption Limit"
+    charging_time_limit:
+      name: "EVSE Charging Time Limit"
+    default_charging_time_limit:
+      name: "EVSE Default Charging Time Limit"
+    under_power_limit:
+      name: "EVSE Under Power Limit"
+    default_under_power_limit:
+      name: "EVSE Default Under Power Limit"
 ```
 
 ## Customization tips
