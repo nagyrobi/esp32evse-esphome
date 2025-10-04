@@ -142,21 +142,21 @@ binary_sensor:
     charging_limit_reached:
       name: "EVSE Charging Limit Reached"
     pilot_fault:
-      name: "EVSE Pilot Fault"
-    diode_short:
-      name: "EVSE Diode Short"
+      name: "EVSE Fault Pilot"
+    diode_short_fault:
+      name: "EVSE Fault Diode Short"
     lock_fault:
-      name: "EVSE Lock Fault"
+      name: "EVSE Fault Lock"
     unlock_fault:
-      name: "EVSE Unlock Fault"
+      name: "EVSE Fault Unlock"
     rcm_triggered_fault:
-      name: "EVSE RCM Triggered"
+      name: "EVSE Fault RCM Triggered"
     rcm_self_test_fault:
-      name: "EVSE RCM Self-Test Fault"
+      name: "EVSE Fault RCM Self-Test"
     temperature_high_fault:
-      name: "EVSE Temperature High Fault"
-    temperature_fault:
-      name: "EVSE Temperature Fault"
+      name: "EVSE Fault Temperature High"
+    temperature_sensor_fault:
+      name: "EVSE Fault Temperature Sensor"
 ```
 
 The ``charging_limit_reached`` binary sensor turns on when the EVSE stopped charging because a configured limit (time, energy, or
