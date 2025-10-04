@@ -3,7 +3,7 @@
 This repository provides an [ESPHome](https://esphome.io/) custom component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller. 
 It's mainly intended to be used in a custom [HMI screen based on ESPHome and LVGL](https://github.com/nagyrobi/esp32-evse_esphome-lvgl).
 
-It implements the communication with ESP32-EVSE using [AT Commands](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands).
+It was developed and tested with board [ESP32-S2 EVSE DIY ALPHA](https://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32-S2-DA) (aka. [esp32s2-evse-d-a](https://oshwlab.com/dzurik.miroslav/esp32s2-diy-evse)) in [fixed cable configuration](https://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32-S2-DA#with-fixed-cable). The communication implements the [AT Commands](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands).
 
 Why would you complement ESP32-EVSE with another ESP32 running ESPHome? You can extend its functionality independently, increasing flexibility:
 - make HMI/graphical UI rendered via LVGL, on an ESP32-based screen, with fully open source resources (no proprietary editor needed)
