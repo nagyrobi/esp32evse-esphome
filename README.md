@@ -221,7 +221,7 @@ number:
 - Adjust the ``maximum_charging_current`` to match the electrical limits of your installation (eg. add ``max_value: 32`` parameter if you have 32A breakers in the branch protecting the EVSE, for cascaded breakers use the value of the lowest one).
 - Omit the entities you don't want to use, to reduce resource usage on the device.
 
-## Auto-updating entities
+## Auto-updating actions
 
 ESP32-EVSE is able to periodically push values without waiting for query commands. 
 
@@ -263,5 +263,18 @@ reports them together:
 - ``esp32evse.current.subscribe`` updates all phase-specific current measurements
 - ``esp32evse.error.subscribe`` drives all the fault binary sensors
 
+## Start trigger
 
+The component implements the ``on_ready`` a trigger to detect when ESP32-EVSE is ready to communicate. This is useful when the EVSE board reboots independently from the ESPHome device.
 
+For example the configuration below will re-establish the subscriptions needed for usual operation:
+
+```yaml
+esp32evse:
+  ...
+  on_ready:
+    - esp32evse.unsubscribe_all:
+    - esp32evse.state.subscribe: 500ms
+    - esp32evse.enable.subscribe: 500ms
+    - esp32evse.error.subscribe: 3s
+```
