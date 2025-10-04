@@ -222,7 +222,7 @@ number:
 
 - Rename entities to match your automation platform naming convention.
 - Use ``internal: true`` for fast updating sensors (voltage and current) you might not need in the Home Automation system to avoid database overload.
-- Adjust the ``maximum_charging_current`` to match the electrical limits of your installation (eg. add ``max_value: 32`` parameter if you have 32A breakers in the branch protecting the EVSE).
+- Adjust the ``maximum_charging_current`` to match the electrical limits of your installation (eg. add ``max_value: 32`` parameter if you have 32A breakers in the branch protecting the EVSE, for cascaded breakers use the value of the lowest one).
 - Omit the entities you don't want to use, to reduce resource usage on the device.
 
 ## Auto-updating entities
