@@ -265,7 +265,7 @@ reports them together:
 
 ## Start trigger
 
-The component implements the ``on_ready`` a trigger to detect when ESP32-EVSE is ready to communicate. This is useful when the EVSE board reboots independently from the ESPHome device.
+The component implements the ``on_ready`` a trigger to detect when ESP32-EVSE is ready to communicate. This is useful when the EVSE board reboots independently from the ESPHome device. If ESP32-EVSE is configured to use AT Commands, when loading the interface it will send the ``RDY`` message to the AT client to inform about readyness of operation.
 
 For example the configuration below will re-establish the subscriptions needed for usual operation:
 
