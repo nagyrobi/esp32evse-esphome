@@ -63,13 +63,13 @@ CONF_PENDING_AUTHORIZATION = "pending_authorization"
 CONF_WIFI_CONNECTED = "wifi_connected"
 CONF_CHARGING_LIMIT_REACHED = "charging_limit_reached"
 CONF_PILOT_FAULT = "pilot_fault"
-CONF_DIODE_SHORT = "diode_short"
+CONF_DIODE_SHORT = "diode_short_fault"
 CONF_LOCK_FAULT = "lock_fault"
 CONF_UNLOCK_FAULT = "unlock_fault"
 CONF_RCM_TRIGGERED = "rcm_triggered_fault"
 CONF_RCM_SELF_TEST_FAULT = "rcm_self_test_fault"
 CONF_TEMPERATURE_HIGH_FAULT = "temperature_high_fault"
-CONF_TEMPERATURE_FAULT = "temperature_fault"
+CONF_TEMPERATURE_FAULT = "temperature_sensor_fault"
 
 
 def _with_default_trigger(config: dict) -> dict:
