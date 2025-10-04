@@ -97,10 +97,6 @@ If your installation only uses a single temperature sensor, expose it via the co
     temperature:
       name: "EVSE Temperature"
 ```
-
-The optional ``uptime`` sensor surfaces how long the EVSE firmware has been running since the last reboot, which is useful for
-diagnostics and correlating watchdog resets.
-
 ### Binary sensors
 
 ```yaml
