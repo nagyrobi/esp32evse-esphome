@@ -17,7 +17,7 @@ DEPENDENCIES = ["esp32evse"]
 ESP32EVSEResetButton = esp32evse_ns.class_("ESP32EVSEResetButton", button.Button)
 ESP32EVSEAuthorizeButton = esp32evse_ns.class_("ESP32EVSEAuthorizeButton", button.Button)
 
-CONF_RESET = "reset"
+CONF_RESET = "restart"
 CONF_AUTHORIZE = "authorize"
 
 
