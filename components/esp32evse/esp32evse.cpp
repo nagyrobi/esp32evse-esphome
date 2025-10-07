@@ -265,118 +265,122 @@ bool ESP32EVSEComponent::should_skip_poll_(FreshnessSlot slot) const {
 // configurable via ``update_interval``).  Each request checks
 // ``should_skip_poll_`` so freshly updated subscription-backed sensors avoid
 // redundant AT commands.
-void ESP32EVSEComponent::update() {
-  if (!this->should_skip_poll_(FreshnessSlot::STATE))
+void ESP32EVSEComponent::perform_update_(bool force) {
+  if (force || !this->should_skip_poll_(FreshnessSlot::STATE))
     this->request_state_update();
-  if (!this->should_skip_poll_(FreshnessSlot::ENABLE))
+  if (force || !this->should_skip_poll_(FreshnessSlot::ENABLE))
     this->request_enable_update();
-  if (!this->should_skip_poll_(FreshnessSlot::PENDING_AUTHORIZATION))
+  if (force || !this->should_skip_poll_(FreshnessSlot::PENDING_AUTHORIZATION))
     this->request_pending_authorization_update();
-  if (this->has_error_binary_sensors_() && !this->should_skip_poll_(FreshnessSlot::ERROR_FLAGS))
+  if (this->has_error_binary_sensors_() && (force || !this->should_skip_poll_(FreshnessSlot::ERROR_FLAGS)))
     this->request_error_flags_update();
 
   if ((this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr) &&
-      !this->should_skip_poll_(FreshnessSlot::TEMPERATURE))
+      (force || !this->should_skip_poll_(FreshnessSlot::TEMPERATURE)))
     this->request_temperature_update();
   if (this->charging_current_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::CHARGING_CURRENT))
+      (force || !this->should_skip_poll_(FreshnessSlot::CHARGING_CURRENT)))
     this->request_charging_current_update();
-  if (this->emeter_power_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::EMETER_POWER))
+  if (this->emeter_power_sensor_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::EMETER_POWER)))
     this->request_emeter_power_update();
   if (this->emeter_session_time_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::EMETER_SESSION_TIME))
+      (force || !this->should_skip_poll_(FreshnessSlot::EMETER_SESSION_TIME)))
     this->request_emeter_session_time_update();
   if (this->emeter_charging_time_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::EMETER_CHARGING_TIME))
+      (force || !this->should_skip_poll_(FreshnessSlot::EMETER_CHARGING_TIME)))
     this->request_emeter_charging_time_update();
-  if (this->uptime_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::UPTIME))
+  if (this->uptime_sensor_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::UPTIME)))
     this->request_uptime_update();
   if ((this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr) &&
-      !this->should_skip_poll_(FreshnessSlot::HEAP))
+      (force || !this->should_skip_poll_(FreshnessSlot::HEAP)))
     this->request_heap_update();
   if (this->energy_consumption_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::ENERGY_CONSUMPTION))
+      (force || !this->should_skip_poll_(FreshnessSlot::ENERGY_CONSUMPTION)))
     this->request_energy_consumption_update();
   if (this->total_energy_consumption_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::TOTAL_ENERGY_CONSUMPTION))
+      (force || !this->should_skip_poll_(FreshnessSlot::TOTAL_ENERGY_CONSUMPTION)))
     this->request_total_energy_consumption_update();
   if ((this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
        this->voltage_l3_sensor_ != nullptr) &&
-      !this->should_skip_poll_(FreshnessSlot::VOLTAGE))
+      (force || !this->should_skip_poll_(FreshnessSlot::VOLTAGE)))
     this->request_voltage_update();
   if ((this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
        this->current_l3_sensor_ != nullptr) &&
-      !this->should_skip_poll_(FreshnessSlot::CURRENT))
+      (force || !this->should_skip_poll_(FreshnessSlot::CURRENT)))
     this->request_current_update();
   if ((this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr) &&
-      !this->should_skip_poll_(FreshnessSlot::WIFI_STATUS))
+      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STATUS)))
     this->request_wifi_status_update();
   if (this->charging_limit_reached_binary_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::CHARGING_LIMIT_REACHED))
+      (force || !this->should_skip_poll_(FreshnessSlot::CHARGING_LIMIT_REACHED)))
     this->request_charging_limit_reached_update();
-  if (this->available_switch_ != nullptr && !this->should_skip_poll_(FreshnessSlot::AVAILABLE))
+  if (this->available_switch_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::AVAILABLE)))
     this->request_available_update();
   if (this->request_authorization_switch_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::REQUEST_AUTHORIZATION))
+      (force || !this->should_skip_poll_(FreshnessSlot::REQUEST_AUTHORIZATION)))
     this->request_request_authorization_update();
   if (this->emeter_three_phase_switch_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::EMETER_THREE_PHASE))
+      (force || !this->should_skip_poll_(FreshnessSlot::EMETER_THREE_PHASE)))
     this->request_emeter_three_phase_update();
 
   // Slow-changing parameters are also requested every poll.  The
   // ``should_skip_poll_`` guard prevents redundant commands when a subscription
   // delivered fresher data moments earlier.
   if (this->default_charging_current_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_CURRENT))
+      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_CURRENT)))
     this->request_default_charging_current_update();
   if (this->maximum_charging_current_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT))
+      (force || !this->should_skip_poll_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT)))
     this->request_maximum_charging_current_update();
   if (this->consumption_limit_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::CONSUMPTION_LIMIT))
+      (force || !this->should_skip_poll_(FreshnessSlot::CONSUMPTION_LIMIT)))
     this->request_consumption_limit_update();
   if (this->default_consumption_limit_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT))
+      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT)))
     this->request_default_consumption_limit_update();
   if (this->charging_time_limit_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::CHARGING_TIME_LIMIT))
+      (force || !this->should_skip_poll_(FreshnessSlot::CHARGING_TIME_LIMIT)))
     this->request_charging_time_limit_update();
   if (this->default_charging_time_limit_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT))
+      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT)))
     this->request_default_charging_time_limit_update();
   if (this->under_power_limit_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::UNDER_POWER_LIMIT))
+      (force || !this->should_skip_poll_(FreshnessSlot::UNDER_POWER_LIMIT)))
     this->request_under_power_limit_update();
   if (this->default_under_power_limit_number_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT))
+      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT)))
     this->request_default_under_power_limit_update();
   if (this->wifi_sta_ssid_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::WIFI_STA_CFG))
+      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STA_CFG)))
     this->request_wifi_sta_cfg_update();
   if (this->wifi_sta_ip_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::WIFI_STA_IP))
+      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STA_IP)))
     this->request_wifi_sta_ip_update();
   if (this->wifi_sta_mac_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::WIFI_STA_MAC))
+      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STA_MAC)))
     this->request_wifi_sta_mac_update();
   if (this->device_name_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::DEVICE_NAME))
+      (force || !this->should_skip_poll_(FreshnessSlot::DEVICE_NAME)))
     this->request_device_name_update();
-  if (this->chip_text_sensor_ != nullptr && !this->should_skip_poll_(FreshnessSlot::CHIP))
+  if (this->chip_text_sensor_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::CHIP)))
     this->request_chip_update();
   if (this->version_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::VERSION))
+      (force || !this->should_skip_poll_(FreshnessSlot::VERSION)))
     this->request_version_update();
   if (this->idf_version_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::IDF_VERSION))
+      (force || !this->should_skip_poll_(FreshnessSlot::IDF_VERSION)))
     this->request_idf_version_update();
   if (this->build_time_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::BUILD_TIME))
+      (force || !this->should_skip_poll_(FreshnessSlot::BUILD_TIME)))
     this->request_build_time_update();
   if (this->device_time_text_sensor_ != nullptr &&
-      !this->should_skip_poll_(FreshnessSlot::DEVICE_TIME))
+      (force || !this->should_skip_poll_(FreshnessSlot::DEVICE_TIME)))
     this->request_device_time_update();
 }
+
+void ESP32EVSEComponent::update() { this->perform_update_(false); }
+
+void ESP32EVSEComponent::force_update() { this->perform_update_(true); }
 
 // Emit human readable configuration details in the ESPHome logs.
 void ESP32EVSEComponent::dump_config() {

@@ -59,6 +59,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void loop() override;
   void dump_config() override;
   void update() override;
+  void force_update();
 
   // The following setter helpers are invoked from the Python glue code to
   // connect ESPHome entities to this component instance.  Storing the pointers
@@ -257,6 +258,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void send_authorize_command();
 
  protected:
+  void perform_update_(bool force);
   static constexpr uint32_t ERROR_FLAG_PILOT_FAULT = 1u << 0;
   static constexpr uint32_t ERROR_FLAG_DIODE_SHORT = 1u << 1;
   static constexpr uint32_t ERROR_FLAG_LOCK_FAULT = 1u << 2;
@@ -596,6 +598,16 @@ class ESP32EVSEUnsubscribeAllAction : public Action<Ts...>, public Parented<ESP3
     if (this->parent_ == nullptr)
       return;
     this->parent_->at_unsub();
+  }
+};
+
+template<typename... Ts>
+class ESP32EVSEForceUpdateAction : public Action<Ts...>, public Parented<ESP32EVSEComponent> {
+ public:
+  void play(Ts... x) {
+    if (this->parent_ == nullptr)
+      return;
+    this->parent_->force_update();
   }
 };
 
