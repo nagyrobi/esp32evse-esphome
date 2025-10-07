@@ -220,7 +220,9 @@ number:
 - Adjust the ``maximum_charging_current`` to match the electrical limits of your installation (eg. add ``max_value: 32`` parameter if you have 32A breakers in the branch protecting the EVSE, for cascaded breakers use the value of the lowest one).
 - Omit the entities you don't want to use, to reduce resource usage on the device.
 
-## Auto-updating actions
+## Actions
+
+### Auto-updating selected entities
 
 ESP32-EVSE is able to periodically push values without waiting for query commands. 
 
@@ -262,6 +264,10 @@ reports them together:
 - ``esp32evse.current.subscribe`` updates all phase-specific current measurements
 - ``esp32evse.error.subscribe`` drives all the fault binary sensors
 
+### Force updating all entities
+
+With ``esp32evse.force_update:`` acttion you can trigger updating all the entities on demand.
+
 ## Start trigger
 
 The component implements the ``on_ready`` a trigger to detect when ESP32-EVSE is ready to communicate. This is useful when the EVSE board reboots independently from the ESPHome device. If ESP32-EVSE is configured to use AT Commands, when loading the interface it will send the ``RDY`` message to the AT client to inform about readyness of operation.
@@ -273,6 +279,7 @@ esp32evse:
   ...
   on_ready:
     - esp32evse.unsubscribe_all:
+    - esp32evse.force_update:
     - esp32evse.state.subscribe: 500ms
     - esp32evse.enable.subscribe: 500ms
     - esp32evse.error.subscribe: 3s
