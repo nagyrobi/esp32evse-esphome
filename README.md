@@ -183,7 +183,7 @@ button:
     esp32evse_id: evse
     authorize:
       name: "EVSE Authorize"
-    reset:
+    restart:
       name: "EVSE Restart"
 ```
 
