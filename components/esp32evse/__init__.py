@@ -43,6 +43,11 @@ ESP32EVSEUnsubscribeAllAction = esp32evse_ns.class_(
     automation.Action,
     cg.Parented.template(ESP32EVSEComponent),
 )
+ESP32EVSEForceUpdateAction = esp32evse_ns.class_(
+    "ESP32EVSEForceUpdateAction",
+    automation.Action,
+    cg.Parented.template(ESP32EVSEComponent),
+)
 
 CONF_ESP32EVSE_ID = "esp32evse_id"
 CONF_ON_READY = "on_ready"
@@ -95,12 +100,16 @@ def _resolve_parent_id(config):
     )
 
 
-def _validate_unsubscribe_all_config(value):
+def _parent_reference_config(value):
     if value is None:
         value = {}
     elif not isinstance(value, dict):
         value = {CONF_ESP32EVSE_ID: value}
     return cv.Schema({cv.Optional(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent)})(value)
+
+
+def _validate_unsubscribe_all_config(value):
+    return _parent_reference_config(value)
 
 
 def _clamp_update_interval(config):
@@ -266,6 +275,18 @@ for _name, _command in _SUBSCRIPTION_TARGETS.items():
     _validate_unsubscribe_all_config,
 )
 async def unsubscribe_all_to_code(config, action_id, template_arg, args):
+    component_id = _resolve_parent_id(config)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, component_id)
+    return var
+
+
+@automation.register_action(
+    "esp32evse.force_update",
+    ESP32EVSEForceUpdateAction,
+    _parent_reference_config,
+)
+async def force_update_to_code(config, action_id, template_arg, args):
     component_id = _resolve_parent_id(config)
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, component_id)
