@@ -38,7 +38,7 @@ uart:
   id: evse_uart
   tx_pin: GPIOXX
   rx_pin: GPIOXX
-  baud_rate: 921600 
+  baud_rate: 115200 
   stop_bits: 1
   parity: NONE
 
