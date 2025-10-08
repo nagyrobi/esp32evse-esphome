@@ -9,7 +9,7 @@ Why would you complement ESP32-EVSE with another ESP32 running ESPHome? You can 
 - make HMI/graphical UI rendered via LVGL, on an ESP32-based screen, with fully open source resources (no proprietary editor needed)
 - optinally connect to Home Assistant via native API (or MQTT to other systems), exposing the EVSE as a bunch of sensors and controls
 - implement any custom authorization like RFiD readers etc.
-- multiple UARTs can be configured (eg one talking to `esp32-evse`, other talking to smart meter etc), make own Dynamic Load Management through HA or other ESPHome components (eg use data from other meters in various ways; freely implement DLM logic either in HA or in ESPHome)
+- multiple UARTs can be configured (eg one talking to EVSE, other talking to smart meter etc), make own Dynamic Load Management through HA or other ESPHome components (eg use data from other meters in various ways; freely implement DLM logic either in HA or in ESPHome)
 - can use free GPIOs or the display for anything else
 - has Bluetooth and with it you could pair with your car and implement additional related features (eg open charging flap automatically, poll battery status, temperature; garage door control etc, which wouldn't have to interfere with EVSE board at all)
 - the EVSE not having to deal with any of the above, can keep working independently as a mission critical piece of hardware
