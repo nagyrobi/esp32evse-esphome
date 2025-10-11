@@ -104,10 +104,10 @@ binary_sensor:
     esp32evse_id: evse
     pending_authorization:
       name: "EVSE Pending Authorization"
-    wifi_connected:
-      name: "EVSE Wi-Fi Connected"
     charging_limit_reached:
       name: "EVSE Charging Limit Reached"
+    wifi_connected:
+      name: "EVSE Wi-Fi Connected"
     pilot_fault:
       name: "EVSE Fault Pilot"
     diode_short_fault:
@@ -125,9 +125,6 @@ binary_sensor:
     temperature_sensor_fault:
       name: "EVSE Fault Temperature Sensor"
 ```
-
-The ``charging_limit_reached`` binary sensor turns on when the EVSE stopped charging because a configured limit (time, energy, or
-under-power) was met.
 
 The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. 
 
@@ -248,7 +245,7 @@ Provide ``never`` to stop receiving updates for the same entity:
 ```
 
 And use ``esp32evse.unsubscribe_all`` to clear every active subscription in one
-shot (add ``esp32evse_id: <id>`` if you host multiple EVSE components):
+shot:
 
 ```yaml
     on_...:
