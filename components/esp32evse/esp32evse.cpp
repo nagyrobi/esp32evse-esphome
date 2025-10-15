@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -15,7 +16,6 @@
 #include <inttypes.h>
 #include <limits>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace esphome {
@@ -102,6 +102,96 @@ float parse_last_float(const std::string &input) {
 }
 
 }  // namespace
+
+void ESP32EVSEComponent::CommandString::clear() {
+  this->length_ = 0;
+  this->buffer_[0] = '\0';
+}
+
+void ESP32EVSEComponent::CommandString::assign(const char *value) {
+  this->clear();
+  if (value == nullptr)
+    return;
+  size_t to_copy = std::min(strlen(value), MAX_LENGTH);
+  if (to_copy > 0)
+    memcpy(this->buffer_, value, to_copy);
+  this->length_ = to_copy;
+  this->buffer_[this->length_] = '\0';
+}
+
+void ESP32EVSEComponent::CommandString::append(const char *value) {
+  if (value == nullptr)
+    return;
+  size_t remaining = MAX_LENGTH - this->length_;
+  if (remaining == 0)
+    return;
+  size_t to_copy = std::min(strlen(value), remaining);
+  if (to_copy > 0)
+    memcpy(this->buffer_ + this->length_, value, to_copy);
+  this->length_ += to_copy;
+  this->buffer_[this->length_] = '\0';
+}
+
+void ESP32EVSEComponent::CommandString::append_char(char value) {
+  if (this->length_ >= MAX_LENGTH)
+    return;
+  this->buffer_[this->length_++] = value;
+  this->buffer_[this->length_] = '\0';
+}
+
+void ESP32EVSEComponent::CommandString::append_decimal(int32_t value) {
+  if (this->length_ >= MAX_LENGTH)
+    return;
+  int written = snprintf(this->buffer_ + this->length_, MAX_LENGTH + 1 - this->length_, "%ld",
+                         static_cast<long>(value));
+  if (written <= 0)
+    return;
+  size_t consumed = std::min(static_cast<size_t>(written), MAX_LENGTH - this->length_);
+  this->length_ += consumed;
+  this->buffer_[this->length_] = '\0';
+}
+
+void ESP32EVSEComponent::CommandString::append_unsigned(uint32_t value) {
+  if (this->length_ >= MAX_LENGTH)
+    return;
+  int written = snprintf(this->buffer_ + this->length_, MAX_LENGTH + 1 - this->length_, "%lu",
+                         static_cast<unsigned long>(value));
+  if (written <= 0)
+    return;
+  size_t consumed = std::min(static_cast<size_t>(written), MAX_LENGTH - this->length_);
+  this->length_ += consumed;
+  this->buffer_[this->length_] = '\0';
+}
+
+bool ESP32EVSEComponent::PendingCommandQueue::push_back(const PendingCommand &command) {
+  if (this->size_ >= MAX_PENDING_COMMANDS)
+    return false;
+  this->commands_[this->size_] = command;
+  ++this->size_;
+  return true;
+}
+
+bool ESP32EVSEComponent::PendingCommandQueue::insert(size_t index, const PendingCommand &command) {
+  if (this->size_ >= MAX_PENDING_COMMANDS)
+    return false;
+  if (index > this->size_)
+    index = this->size_;
+  for (size_t i = this->size_; i > index; --i) {
+    this->commands_[i] = this->commands_[i - 1];
+  }
+  this->commands_[index] = command;
+  ++this->size_;
+  return true;
+}
+
+void ESP32EVSEComponent::PendingCommandQueue::pop_front() {
+  if (this->size_ == 0)
+    return;
+  for (size_t i = 1; i < this->size_; ++i) {
+    this->commands_[i - 1] = this->commands_[i];
+  }
+  --this->size_;
+}
 
 // Called once at boot to schedule initial state requests from the EVSE.
 void ESP32EVSEComponent::setup() {
@@ -217,11 +307,7 @@ void ESP32EVSEComponent::loop() {
       break;
     }
     ESP_LOGW(TAG, "Command '%s' timed out", front.command.c_str());
-    auto pending = std::move(this->pending_commands_.front());
-    this->pending_commands_.pop_front();
-    if (pending.callback)
-      pending.callback(pending, false);
-    this->process_next_command_();
+    this->handle_ack_(false);
   }
 }
 
@@ -489,17 +575,9 @@ void ESP32EVSEComponent::write_enable_state(bool enabled) {
   // Remember the requested state so we can publish it once the EVSE confirms
   // the write.
   pending.bool_value = enabled;
-  pending.command = "AT+ENABLE=";
-  pending.command += enabled ? '1' : '0';
-  pending.callback = [this](const PendingCommand &cmd, bool success) {
-    if (success) {
-      if (this->enable_switch_ != nullptr)
-        this->enable_switch_->publish_state(cmd.bool_value);
-    } else if (this->enable_switch_ != nullptr) {
-      this->enable_switch_->publish_state(!cmd.bool_value);
-    }
-  };
-  this->queue_pending_command_(std::move(pending));
+  pending.command.assign("AT+ENABLE=");
+  pending.command.append_char(enabled ? '1' : '0');
+  this->queue_pending_command_(pending);
 }
 
 void ESP32EVSEComponent::write_available_state(bool available) {
@@ -508,17 +586,9 @@ void ESP32EVSEComponent::write_available_state(bool available) {
   // Store the intended availability state so the acknowledgement handler can
   // publish it instead of the optimistic toggle response.
   pending.bool_value = available;
-  pending.command = "AT+AVAILABLE=";
-  pending.command += available ? '1' : '0';
-  pending.callback = [this](const PendingCommand &cmd, bool success) {
-    if (success) {
-      if (this->available_switch_ != nullptr)
-        this->available_switch_->publish_state(cmd.bool_value);
-    } else if (this->available_switch_ != nullptr) {
-      this->request_available_update();
-    }
-  };
-  this->queue_pending_command_(std::move(pending));
+  pending.command.assign("AT+AVAILABLE=");
+  pending.command.append_char(available ? '1' : '0');
+  this->queue_pending_command_(pending);
 }
 
 void ESP32EVSEComponent::write_request_authorization_state(bool request) {
@@ -527,34 +597,18 @@ void ESP32EVSEComponent::write_request_authorization_state(bool request) {
   // Persist the desired authorization request flag to publish after a
   // successful acknowledgement.
   pending.bool_value = request;
-  pending.command = "AT+REQAUTH=";
-  pending.command += request ? '1' : '0';
-  pending.callback = [this](const PendingCommand &cmd, bool success) {
-    if (success) {
-      if (this->request_authorization_switch_ != nullptr)
-        this->request_authorization_switch_->publish_state(cmd.bool_value);
-    } else if (this->request_authorization_switch_ != nullptr) {
-      this->request_request_authorization_update();
-    }
-  };
-  this->queue_pending_command_(std::move(pending));
+  pending.command.assign("AT+REQAUTH=");
+  pending.command.append_char(request ? '1' : '0');
+  this->queue_pending_command_(pending);
 }
 
 void ESP32EVSEComponent::write_emeter_three_phase_state(bool enabled) {
   PendingCommand pending;
   pending.type = PendingCommand::Type::EMETER_THREE_PHASE_WRITE;
   pending.bool_value = enabled;
-  pending.command = "AT+EMETERTHREEPHASE=";
-  pending.command += enabled ? '1' : '0';
-  pending.callback = [this](const PendingCommand &cmd, bool success) {
-    if (success) {
-      if (this->emeter_three_phase_switch_ != nullptr)
-        this->emeter_three_phase_switch_->publish_state(cmd.bool_value);
-    } else if (this->emeter_three_phase_switch_ != nullptr) {
-      this->request_emeter_three_phase_update();
-    }
-  };
-  this->queue_pending_command_(std::move(pending));
+  pending.command.assign("AT+EMETERTHREEPHASE=");
+  pending.command.append_char(enabled ? '1' : '0');
+  this->queue_pending_command_(pending);
 }
 
 void ESP32EVSEComponent::write_charging_current(float current) {
@@ -583,18 +637,13 @@ void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *numb
   PendingCommand pending;
   pending.type = PendingCommand::Type::NUMBER_WRITE;
   // Retain the target entity and scaled integer the firmware expects so the
-  // callback can publish the same reading once the write sticks.
+  // acknowledgement handler can publish the same reading once the write sticks.
   pending.number = number;
   pending.scaled_value = static_cast<float>(to_send);
-  pending.command = command + "=" + std::to_string(to_send);
-  pending.callback = [this](const PendingCommand &cmd, bool success) {
-    if (success) {
-      this->publish_scaled_number_(cmd.number, cmd.scaled_value);
-    } else {
-      this->request_number_update_(cmd.number);
-    }
-  };
-  this->queue_pending_command_(std::move(pending));
+  pending.command.assign(command);
+  pending.command.append_char('=');
+  pending.command.append_decimal(to_send);
+  this->queue_pending_command_(pending);
 }
 
 // Convenience wrappers for popular subscription targets.  They are exposed to
@@ -607,14 +656,20 @@ void ESP32EVSEComponent::at_sub(const std::string &command, uint32_t period_ms) 
     return;
   }
   ESP_LOGD(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
-  std::string cmd = "AT+SUB=" + command + "," + std::to_string(period_ms);
+  CommandString cmd;
+  cmd.assign("AT+SUB=");
+  cmd.append(command);
+  cmd.append_char(',');
+  cmd.append_unsigned(period_ms);
   this->send_command_(cmd);
 }
 
 void ESP32EVSEComponent::at_unsub(const std::string &command) {
   if (command.empty()) {
     ESP_LOGD(TAG, "Sending AT+UNSUB with empty command parameter");
-    this->send_command_("AT+UNSUB=\"\"");
+    CommandString cmd;
+    cmd.assign("AT+UNSUB=\"\"");
+    this->send_command_(cmd);
     return;
   }
 
@@ -626,7 +681,9 @@ void ESP32EVSEComponent::at_unsub(const std::string &command) {
   }
 
   ESP_LOGD(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
-  std::string cmd = "AT+UNSUB=" + command;
+  CommandString cmd;
+  cmd.assign("AT+UNSUB=");
+  cmd.append(command);
   this->send_command_(cmd);
 }
 
@@ -651,39 +708,48 @@ void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
 
 void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }
 
-bool ESP32EVSEComponent::send_command_(const std::string &command,
-                                       std::function<void(const PendingCommand &, bool)> callback) {
+bool ESP32EVSEComponent::send_command_(const char *command) {
+  if (command == nullptr || command[0] == '\0')
+    return false;
   PendingCommand pending;
-  pending.command = command;
-  // Callbacks for read commands are rare but we still thread them through the
-  // same queue machinery so acknowledgements remain ordered.
-  pending.callback = std::move(callback);
-  this->queue_pending_command_(std::move(pending));
+  pending.command.assign(command);
+  this->queue_pending_command_(pending);
   return true;
 }
 
-void ESP32EVSEComponent::queue_pending_command_(PendingCommand pending) {
+bool ESP32EVSEComponent::send_command_(const CommandString &command) {
+  if (command.size() == 0)
+    return false;
+  PendingCommand pending;
+  pending.command = command;
+  this->queue_pending_command_(pending);
+  return true;
+}
+
+void ESP32EVSEComponent::queue_pending_command_(const PendingCommand &pending) {
   ESP_LOGV(TAG, "Queueing command: %s", pending.command.c_str());
   // Track each command so we only send one request at a time and can associate
   // the eventual OK/ERROR response with the original metadata.
   const bool prioritize_interactive = pending.type != PendingCommand::Type::GENERIC;
 
+  bool enqueued = false;
   if (!prioritize_interactive || this->pending_commands_.empty()) {
-    this->pending_commands_.push_back(std::move(pending));
+    enqueued = this->pending_commands_.push_back(pending);
   } else {
-    auto insert_pos = this->pending_commands_.begin();
-    if (insert_pos->sent)
-      ++insert_pos;  // Keep the command currently waiting for an ACK at the front.
+    size_t insert_index = 0;
+    if (this->pending_commands_.front().sent)
+      insert_index = 1;  // Keep the command currently waiting for an ACK at the front.
 
-    // Interactive commands should "cut" ahead of the bulk poll requests so the UI
-    // feels responsive, but they still need to stay behind any request that has
-    // already been transmitted. Walk forward until we reach the first unsent
-    // generic poll item and insert the interactive request there.
-    for (; insert_pos != this->pending_commands_.end(); ++insert_pos) {
-      if (insert_pos->type == PendingCommand::Type::GENERIC)
-        break;  // Stop before unsent poll traffic so interactive writes jump ahead of it.
+    for (; insert_index < this->pending_commands_.size(); ++insert_index) {
+      const auto &candidate = this->pending_commands_[insert_index];
+      if (!candidate.sent && candidate.type == PendingCommand::Type::GENERIC)
+        break;
     }
-    this->pending_commands_.insert(insert_pos, std::move(pending));
+    enqueued = this->pending_commands_.insert(insert_index, pending);
+  }
+  if (!enqueued) {
+    ESP_LOGW(TAG, "Pending command queue full, dropping '%s'", pending.command.c_str());
+    return;
   }
   this->process_next_command_();
 }
@@ -996,11 +1062,58 @@ void ESP32EVSEComponent::handle_ack_(bool success) {
     ESP_LOGW(TAG, "Received %s without pending command", success ? "OK" : "ERROR");
     return;
   }
-  auto pending = std::move(this->pending_commands_.front());
+  PendingCommand pending = this->pending_commands_.front();
   this->pending_commands_.pop_front();
   ESP_LOGV(TAG, "Command '%s' completed with %s", pending.command.c_str(), success ? "OK" : "ERROR");
-  if (pending.callback)
-    pending.callback(pending, success);
+  switch (pending.type) {
+    case PendingCommand::Type::ENABLE_WRITE:
+      if (this->enable_switch_ != nullptr) {
+        if (success) {
+          this->enable_switch_->publish_state(pending.bool_value);
+        } else {
+          this->enable_switch_->publish_state(!pending.bool_value);
+        }
+      }
+      break;
+    case PendingCommand::Type::AVAILABLE_WRITE:
+      if (this->available_switch_ != nullptr) {
+        if (success) {
+          this->available_switch_->publish_state(pending.bool_value);
+        } else {
+          this->request_available_update();
+        }
+      }
+      break;
+    case PendingCommand::Type::REQUEST_AUTHORIZATION_WRITE:
+      if (this->request_authorization_switch_ != nullptr) {
+        if (success) {
+          this->request_authorization_switch_->publish_state(pending.bool_value);
+        } else {
+          this->request_request_authorization_update();
+        }
+      }
+      break;
+    case PendingCommand::Type::EMETER_THREE_PHASE_WRITE:
+      if (this->emeter_three_phase_switch_ != nullptr) {
+        if (success) {
+          this->emeter_three_phase_switch_->publish_state(pending.bool_value);
+        } else {
+          this->request_emeter_three_phase_update();
+        }
+      }
+      break;
+    case PendingCommand::Type::NUMBER_WRITE:
+      if (pending.number != nullptr) {
+        if (success) {
+          this->publish_scaled_number_(pending.number, pending.scaled_value);
+        } else {
+          this->request_number_update_(pending.number);
+        }
+      }
+      break;
+    case PendingCommand::Type::GENERIC:
+      break;
+  }
   this->process_next_command_();
 }
 
