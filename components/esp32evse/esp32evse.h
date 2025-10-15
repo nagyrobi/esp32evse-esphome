@@ -16,8 +16,8 @@
 #include "esphome/core/hal.h"
 
 #include <array>
-#include <deque>
-#include <functional>
+#include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <optional>
 #include <string>
@@ -320,6 +320,25 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   // Commands are queued while we wait for acknowledgements from the EVSE; this
   // struct tracks their progress and callbacks.
+  struct CommandString {
+    static constexpr size_t MAX_LENGTH = 80;
+
+    void clear();
+    void assign(const char *value);
+    void assign(const std::string &value) { this->assign(value.c_str()); }
+    void append(const char *value);
+    void append(const std::string &value) { this->append(value.c_str()); }
+    void append_char(char value);
+    void append_decimal(int32_t value);
+    void append_unsigned(uint32_t value);
+    const char *c_str() const { return this->buffer_; }
+    size_t size() const { return this->length_; }
+
+   private:
+    char buffer_[MAX_LENGTH + 1] = {0};
+    size_t length_{0};
+  };
+
   struct PendingCommand {
     enum class Type : uint8_t {
       GENERIC = 0,
@@ -331,8 +350,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     };
 
     Type type{Type::GENERIC};
-    std::string command;
-    std::function<void(const PendingCommand &, bool)> callback;
+    CommandString command;
     uint32_t start_time{0};
     bool sent{false};
     // Switch writes store the requested state so callbacks can publish it once
@@ -387,9 +405,9 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_charging_limit_reached_(bool reached);
   void update_error_flags_(uint32_t mask);
 
-  bool send_command_(const std::string &command,
-                     std::function<void(const PendingCommand &, bool)> callback = nullptr);
-  void queue_pending_command_(PendingCommand pending);
+  bool send_command_(const char *command);
+  bool send_command_(const CommandString &command);
+  void queue_pending_command_(const PendingCommand &pending);
   bool is_front_sent_write_(PendingCommand::Type type,
                             ESP32EVSEChargingCurrentNumber *number = nullptr) const;
   void request_number_update_(ESP32EVSEChargingCurrentNumber *number);
@@ -397,6 +415,28 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void publish_text_sensor_state_(text_sensor::TextSensor *sensor, const std::string &state);
   bool is_valid_subscription_argument_(const std::string &argument) const;
   bool has_error_binary_sensors_() const;
+
+  class PendingCommandQueue {
+   public:
+    bool empty() const { return this->size_ == 0; }
+    size_t size() const { return this->size_; }
+    PendingCommand &front() { return this->commands_[0]; }
+    const PendingCommand &front() const { return this->commands_[0]; }
+    PendingCommand &operator[](size_t index) { return this->commands_[index]; }
+    const PendingCommand &operator[](size_t index) const { return this->commands_[index]; }
+    bool push_back(const PendingCommand &command);
+    bool insert(size_t index, const PendingCommand &command);
+    void pop_front();
+
+   private:
+    // ``setup()`` and ``perform_update_`` enqueue more than thirty back-to-back
+    // requests before the UART loop processes acknowledgements.  Reserve enough
+    // static slots to hold that burst plus headroom for user actions so we keep
+    // everything queued instead of dropping commands.
+    static constexpr size_t MAX_PENDING_COMMANDS = 48;
+    std::array<PendingCommand, MAX_PENDING_COMMANDS> commands_{};
+    size_t size_{0};
+  };
 
   // Entity pointers registered via the setter functions above.  We guard every
   // usage with a nullptr check so optional sensors don't consume memory when
@@ -464,7 +504,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
-  std::deque<PendingCommand> pending_commands_;
+  PendingCommandQueue pending_commands_;
 
   // Per-slot timestamps that power the freshness tracker.  A ``0`` entry means
   // the slot has never received a response and should not suppress polling yet.
