@@ -615,7 +615,7 @@ class ESP32EVSEManagedSubscriptionAction : public Action<Ts...>, public Parented
 
   void set_command(const std::string &command) { command_ = command; }
 
-  void play(Ts... x) {
+  void play(const Ts &... x) override {
     auto *parent = this->parent_;
     if (parent == nullptr || command_.empty())
       return;
@@ -634,7 +634,7 @@ class ESP32EVSEManagedSubscriptionAction : public Action<Ts...>, public Parented
 template<typename... Ts>
 class ESP32EVSEUnsubscribeAllAction : public Action<Ts...>, public Parented<ESP32EVSEComponent> {
  public:
-  void play(Ts... x) {
+  void play(const Ts &... x) override {
     if (this->parent_ == nullptr)
       return;
     this->parent_->at_unsub();
@@ -644,7 +644,7 @@ class ESP32EVSEUnsubscribeAllAction : public Action<Ts...>, public Parented<ESP3
 template<typename... Ts>
 class ESP32EVSEForceUpdateAction : public Action<Ts...>, public Parented<ESP32EVSEComponent> {
  public:
-  void play(Ts... x) {
+  void play(const Ts &... x) override {
     if (this->parent_ == nullptr)
       return;
     this->parent_->force_update();
