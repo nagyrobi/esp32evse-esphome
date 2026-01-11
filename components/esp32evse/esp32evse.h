@@ -32,6 +32,7 @@ class ESP32EVSEEmeterThreePhaseSwitch;
 class ESP32EVSEChargingCurrentNumber;
 class ESP32EVSEResetButton;
 class ESP32EVSEAuthorizeButton;
+class ESP32EVSEStartAccessPointButton;
 class ESP32EVSEPendingAuthorizationBinarySensor;
 class ESP32EVSEWifiConnectedBinarySensor;
 class ESP32EVSEChargingLimitReachedBinarySensor;
@@ -43,6 +44,7 @@ class ESP32EVSERCMTriggeredBinarySensor;
 class ESP32EVSERCMSelfTestFaultBinarySensor;
 class ESP32EVSETemperatureHighFaultBinarySensor;
 class ESP32EVSETemperatureFaultBinarySensor;
+class ESP32EVSETimeoutFaultBinarySensor;
 
 template<typename... Ts>
 class ESP32EVSEManagedSubscriptionAction;
@@ -165,6 +167,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   void set_reset_button(ESP32EVSEResetButton *btn) { this->reset_button_ = btn; }
   void set_authorize_button(ESP32EVSEAuthorizeButton *btn) { this->authorize_button_ = btn; }
+  void set_start_ap_button(ESP32EVSEStartAccessPointButton *btn) { this->start_ap_button_ = btn; }
 
   void set_pending_authorization_binary_sensor(ESP32EVSEPendingAuthorizationBinarySensor *bs) {
     this->pending_authorization_binary_sensor_ = bs;
@@ -199,6 +202,9 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   }
   void set_temperature_fault_binary_sensor(ESP32EVSETemperatureFaultBinarySensor *bs) {
     this->temperature_fault_binary_sensor_ = bs;
+  }
+  void set_timeout_fault_binary_sensor(ESP32EVSETimeoutFaultBinarySensor *bs) {
+    this->timeout_fault_binary_sensor_ = bs;
   }
 
   // Methods that enqueue UART requests to refresh EVSE state.  These are called
@@ -256,6 +262,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void at_unsub(const std::string &command = "");
   void send_reset_command();
   void send_authorize_command();
+  void send_start_ap_command();
 
  protected:
   void perform_update_(bool force);
@@ -364,7 +371,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   };
 
   void process_line_(const std::string &line);
-  void handle_ack_(bool success);
+  void handle_ack_(bool success, bool timed_out);
   void process_next_command_();
   void update_state_(uint8_t state);
   void update_enable_(bool enable);
@@ -489,6 +496,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   ESP32EVSEResetButton *reset_button_{nullptr};
   ESP32EVSEAuthorizeButton *authorize_button_{nullptr};
+  ESP32EVSEStartAccessPointButton *start_ap_button_{nullptr};
 
   ESP32EVSEPendingAuthorizationBinarySensor *pending_authorization_binary_sensor_{nullptr};
   ESP32EVSEWifiConnectedBinarySensor *wifi_connected_binary_sensor_{nullptr};
@@ -501,6 +509,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSERCMSelfTestFaultBinarySensor *rcm_self_test_fault_binary_sensor_{nullptr};
   ESP32EVSETemperatureHighFaultBinarySensor *temperature_high_fault_binary_sensor_{nullptr};
   ESP32EVSETemperatureFaultBinarySensor *temperature_fault_binary_sensor_{nullptr};
+  ESP32EVSETimeoutFaultBinarySensor *timeout_fault_binary_sensor_{nullptr};
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
@@ -565,6 +574,11 @@ class ESP32EVSEAuthorizeButton : public button::Button, public Parented<ESP32EVS
   void press_action() override;
 };
 
+class ESP32EVSEStartAccessPointButton : public button::Button, public Parented<ESP32EVSEComponent> {
+ protected:
+  void press_action() override;
+};
+
 class ESP32EVSEPendingAuthorizationBinarySensor
     : public binary_sensor::BinarySensor,
       public Parented<ESP32EVSEComponent> {};
@@ -605,6 +619,10 @@ class ESP32EVSETemperatureHighFaultBinarySensor
       public Parented<ESP32EVSEComponent> {};
 
 class ESP32EVSETemperatureFaultBinarySensor
+    : public binary_sensor::BinarySensor,
+      public Parented<ESP32EVSEComponent> {};
+
+class ESP32EVSETimeoutFaultBinarySensor
     : public binary_sensor::BinarySensor,
       public Parented<ESP32EVSEComponent> {};
 

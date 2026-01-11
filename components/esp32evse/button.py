@@ -16,9 +16,13 @@ DEPENDENCIES = ["esp32evse"]
 # on the EVSE controller from client applications.
 ESP32EVSEResetButton = esp32evse_ns.class_("ESP32EVSEResetButton", button.Button)
 ESP32EVSEAuthorizeButton = esp32evse_ns.class_("ESP32EVSEAuthorizeButton", button.Button)
+ESP32EVSEStartAccessPointButton = esp32evse_ns.class_(
+    "ESP32EVSEStartAccessPointButton", button.Button
+)
 
 CONF_RESET = "restart"
 CONF_AUTHORIZE = "authorize"
+CONF_START_AP = "start_ap"
 
 
 CONFIG_SCHEMA = cv.All(
@@ -39,6 +43,12 @@ CONFIG_SCHEMA = cv.All(
                 ESP32EVSEAuthorizeButton,
                 icon="mdi:battery-check-outline",
             ),
+            # Trigger the EVSE's Wi-Fi access point mode for local access.
+            cv.Optional(CONF_START_AP): button.button_schema(
+                ESP32EVSEStartAccessPointButton,
+                icon="mdi:wifi-plus",
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     ),
     # Ensure at least one button is defined—empty button sections are a common
@@ -46,6 +56,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(
         CONF_RESET,
         CONF_AUTHORIZE,
+        CONF_START_AP,
     ),
 )
 
@@ -65,3 +76,8 @@ async def to_code(config):
         btn = await button.new_button(authorize_config)
         await cg.register_parented(btn, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_authorize_button(btn))
+    if start_ap_config := config.get(CONF_START_AP):
+        # Enable the EVSE's access point mode via AT command.
+        btn = await button.new_button(start_ap_config)
+        await cg.register_parented(btn, config[CONF_ESP32EVSE_ID])
+        cg.add(parent.set_start_ap_button(btn))

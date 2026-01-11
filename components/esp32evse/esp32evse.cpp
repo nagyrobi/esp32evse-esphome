@@ -307,7 +307,10 @@ void ESP32EVSEComponent::loop() {
       break;
     }
     ESP_LOGW(TAG, "Command '%s' timed out", front.command.c_str());
-    this->handle_ack_(false);
+    if (this->timeout_fault_binary_sensor_ != nullptr) {
+      this->timeout_fault_binary_sensor_->publish_state(true);
+    }
+    this->handle_ack_(false, true);
   }
 }
 
@@ -708,6 +711,8 @@ void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
 
 void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }
 
+void ESP32EVSEComponent::send_start_ap_command() { this->send_command_("AT+WIFIAPCFG=1"); }
+
 bool ESP32EVSEComponent::send_command_(const char *command) {
   if (command == nullptr || command[0] == '\0')
     return false;
@@ -776,12 +781,12 @@ bool ESP32EVSEComponent::is_front_sent_write_(PendingCommand::Type type,
 void ESP32EVSEComponent::process_line_(const std::string &line) {
   ESP_LOGV(TAG, "Received line: %s", line.c_str());
   if (line == "OK") {
-    this->handle_ack_(true);
+    this->handle_ack_(true, false);
     return;
   }
   if (line == "ERROR") {
     ESP_LOGW(TAG, "ESP32-EVSE error response received");
-    this->handle_ack_(false);
+    this->handle_ack_(false, false);
     return;
   }
   if (line == "RDY") {
@@ -1057,7 +1062,7 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
 
 // Called after receiving an ``OK`` or ``ERROR`` response for the oldest pending
 // command.
-void ESP32EVSEComponent::handle_ack_(bool success) {
+void ESP32EVSEComponent::handle_ack_(bool success, bool timed_out) {
   if (this->pending_commands_.empty()) {
     ESP_LOGW(TAG, "Received %s without pending command", success ? "OK" : "ERROR");
     return;
@@ -1065,6 +1070,9 @@ void ESP32EVSEComponent::handle_ack_(bool success) {
   PendingCommand pending = this->pending_commands_.front();
   this->pending_commands_.pop_front();
   ESP_LOGV(TAG, "Command '%s' completed with %s", pending.command.c_str(), success ? "OK" : "ERROR");
+  if (!timed_out && this->timeout_fault_binary_sensor_ != nullptr) {
+    this->timeout_fault_binary_sensor_->publish_state(false);
+  }
   switch (pending.type) {
     case PendingCommand::Type::ENABLE_WRITE:
       if (this->enable_switch_ != nullptr) {
@@ -1576,6 +1584,12 @@ void ESP32EVSEAuthorizeButton::press_action() {
   if (this->parent_ == nullptr)
     return;
   this->parent_->send_authorize_command();
+}
+
+void ESP32EVSEStartAccessPointButton::press_action() {
+  if (this->parent_ == nullptr)
+    return;
+  this->parent_->send_start_ap_command();
 }
 
 }  // namespace esp32evse
