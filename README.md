@@ -124,6 +124,8 @@ binary_sensor:
       name: "EVSE Fault Temperature High"
     temperature_sensor_fault:
       name: "EVSE Fault Temperature Sensor"
+    timeout_fault:
+      name: "EVSE AT Timeout Fault"
 ```
 
 The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. 
@@ -182,6 +184,8 @@ button:
       name: "EVSE Authorize"
     restart:
       name: "EVSE Restart"
+    start_ap:
+      name: "EVSE Start Wi-Fi AP"
 ```
 
 ### Number inputs
