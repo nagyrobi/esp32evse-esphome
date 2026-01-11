@@ -128,7 +128,7 @@ binary_sensor:
       name: "EVSE AT Timeout Fault"
 ```
 
-The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask. `timeout_fault` is triggered when communication between ESPHome and EVSE times out.
+The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask except `timeout_fault` which is triggered when communication between ESPHome and EVSE times out.
 
 ### Text sensors
 
