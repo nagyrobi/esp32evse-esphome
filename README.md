@@ -125,7 +125,7 @@ binary_sensor:
     temperature_sensor_fault:
       name: "EVSE Fault Temperature Sensor"
     timeout_fault:
-      name: "EVSE AT Timeout Fault"
+      name: "EVSE Fault AT Timeout"
 ```
 
 The fault sensors above expose individual bits from the EVSE's ``AT+ERROR`` status mask except `timeout_fault` which is triggered when communication between ESPHome and EVSE times out.
