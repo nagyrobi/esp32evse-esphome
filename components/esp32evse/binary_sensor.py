@@ -58,6 +58,9 @@ ESP32EVSETemperatureHighFaultBinarySensor = esp32evse_ns.class_(
 ESP32EVSETemperatureFaultBinarySensor = esp32evse_ns.class_(
     "ESP32EVSETemperatureFaultBinarySensor", binary_sensor.BinarySensor
 )
+ESP32EVSETimeoutFaultBinarySensor = esp32evse_ns.class_(
+    "ESP32EVSETimeoutFaultBinarySensor", binary_sensor.BinarySensor
+)
 
 CONF_PENDING_AUTHORIZATION = "pending_authorization"
 CONF_WIFI_CONNECTED = "wifi_connected"
@@ -70,6 +73,7 @@ CONF_RCM_TRIGGERED = "rcm_triggered_fault"
 CONF_RCM_SELF_TEST_FAULT = "rcm_self_test_fault"
 CONF_TEMPERATURE_HIGH_FAULT = "temperature_high_fault"
 CONF_TEMPERATURE_FAULT = "temperature_sensor_fault"
+CONF_TIMEOUT_FAULT = "timeout_fault"
 
 
 def _with_default_trigger(config: dict) -> dict:
@@ -146,6 +150,11 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_PROBLEM,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_TIMEOUT_FAULT): binary_sensor.binary_sensor_schema(
+                ESP32EVSETimeoutFaultBinarySensor,
+                device_class=DEVICE_CLASS_PROBLEM,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     ),
     # Require that at least one sensor is configured to avoid creating empty
@@ -162,6 +171,7 @@ CONFIG_SCHEMA = cv.All(
         CONF_RCM_SELF_TEST_FAULT,
         CONF_TEMPERATURE_HIGH_FAULT,
         CONF_TEMPERATURE_FAULT,
+        CONF_TIMEOUT_FAULT,
     ),
 )
 
@@ -204,6 +214,7 @@ async def to_code(config):
         (CONF_RCM_SELF_TEST_FAULT, parent.set_rcm_self_test_fault_binary_sensor),
         (CONF_TEMPERATURE_HIGH_FAULT, parent.set_temperature_high_fault_binary_sensor),
         (CONF_TEMPERATURE_FAULT, parent.set_temperature_fault_binary_sensor),
+        (CONF_TIMEOUT_FAULT, parent.set_timeout_fault_binary_sensor),
     ):
         if sensor_config := config.get(key):
             sens = await binary_sensor.new_binary_sensor(
