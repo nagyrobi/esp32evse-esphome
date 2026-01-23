@@ -28,6 +28,8 @@ namespace {
 constexpr uint32_t kDefaultUpdateIntervalMs = 60'000;
 constexpr uint32_t kMinUpdateIntervalMs = 10'000;
 constexpr uint32_t kMaxUpdateIntervalMs = 600'000;
+constexpr size_t kRxChunkSize = 64;
+constexpr size_t kMaxLineLength = 512;
 
 // Utility: return a pointer to the substring that follows ``prefix`` if the
 // incoming UART line starts with it.  Many EVSE responses follow a predictable
@@ -196,6 +198,7 @@ void ESP32EVSEComponent::PendingCommandQueue::pop_front() {
 // Called once at boot to schedule initial state requests from the EVSE.
 void ESP32EVSEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 EVSE component");
+  this->read_buffer_.reserve(kMaxLineLength);
 
   this->set_timeout(1000, [this]() {
     this->request_state_update();
@@ -278,20 +281,26 @@ void ESP32EVSEComponent::setup() {
 // Process incoming UART bytes and drive the command queue.  This keeps the ESPHome
 // scheduler responsive even while waiting for EVSE acknowledgements.
 void ESP32EVSEComponent::loop() {
+  uint8_t rx_buffer[kRxChunkSize];
   while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-    char c = static_cast<char>(byte);
-    if (c == '\n' || c == '\r') {
-      if (!this->read_buffer_.empty()) {
-        this->process_line_(this->read_buffer_);
-        this->read_buffer_.clear();
-      }
-    } else {
-      this->read_buffer_.push_back(c);
-      if (this->read_buffer_.size() > 512) {
-        ESP_LOGW(TAG, "Line too long (%zu), discarding partial data", this->read_buffer_.size());
-        this->read_buffer_.clear();
+    size_t available = this->available();
+    if (available == 0)
+      break;
+    size_t to_read = std::min(available, kRxChunkSize);
+    this->read_array(rx_buffer, to_read);
+    for (size_t i = 0; i < to_read; ++i) {
+      char c = static_cast<char>(rx_buffer[i]);
+      if (c == '\n' || c == '\r') {
+        if (!this->read_buffer_.empty()) {
+          this->process_line_(this->read_buffer_);
+          this->read_buffer_.clear();
+        }
+      } else {
+        this->read_buffer_.push_back(c);
+        if (this->read_buffer_.size() > kMaxLineLength) {
+          ESP_LOGW(TAG, "Line too long (%zu), discarding partial data", this->read_buffer_.size());
+          this->read_buffer_.clear();
+        }
       }
     }
   }
