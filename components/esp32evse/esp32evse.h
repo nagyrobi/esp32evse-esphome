@@ -631,17 +631,17 @@ class ESP32EVSEManagedSubscriptionAction : public Action<Ts...>, public Parented
  public:
   TEMPLATABLE_VALUE(uint32_t, period)
 
-  void set_command(const std::string &command) { command_ = command; }
+  void set_command(const std::string &command) { this->command_ = command; }
 
   void play(const Ts &... x) override {
     auto *parent = this->parent_;
-    if (parent == nullptr || command_.empty())
+    if (parent == nullptr || this->command_.empty())
       return;
     uint32_t period = this->period_.value(x...);
     if (period == 0) {
-      parent->at_unsub(command_);
+      parent->at_unsub(this->command_);
     } else {
-      parent->at_sub(command_, period);
+      parent->at_sub(this->command_, period);
     }
   }
 
