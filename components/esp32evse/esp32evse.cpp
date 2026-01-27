@@ -482,16 +482,16 @@ void ESP32EVSEComponent::force_update() { this->perform_update_(true); }
 
 // Emit human readable configuration details in the ESPHome logs.
 void ESP32EVSEComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32 EVSE:");
+  ESP_LOGCONFIG(TAG, "ESP32EVSE UART:");
   auto *uart_parent = this->parent_;
   if (uart_parent != nullptr) {
-    ESP_LOGCONFIG(TAG, "  UART Baud Rate: %u", uart_parent->get_baud_rate());
-    ESP_LOGCONFIG(TAG, "  UART Data Bits: %u", uart_parent->get_data_bits());
-    ESP_LOGCONFIG(TAG, "  UART Parity: %s", LOG_STR_ARG(uart::parity_to_str(uart_parent->get_parity())));
-    ESP_LOGCONFIG(TAG, "  UART Stop Bits: %u", uart_parent->get_stop_bits());
+    ESP_LOGCONFIG(TAG, "  Baud Rate: %u", uart_parent->get_baud_rate());
+    ESP_LOGCONFIG(TAG, "  Data Bits: %u", uart_parent->get_data_bits());
+    ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(uart::parity_to_str(uart_parent->get_parity())));
+    ESP_LOGCONFIG(TAG, "  Stop Bits: %u", uart_parent->get_stop_bits());
     size_t rx_buffer_size = uart_parent->get_rx_buffer_size();
     if (rx_buffer_size != 0) {
-      ESP_LOGCONFIG(TAG, "  UART RX Buffer Size: %u", rx_buffer_size);
+      ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", rx_buffer_size);
     }
   } else {
     ESP_LOGW(TAG, "  No UART parent configured");
@@ -504,7 +504,7 @@ void ESP32EVSEComponent::dump_config() {
     interval = kMinUpdateIntervalMs;
   if (interval > kMaxUpdateIntervalMs)
     interval = kMaxUpdateIntervalMs;
-  ESP_LOGCONFIG(TAG, "  Update Interval: %u ms (%.1f s)", interval, interval / 1000.0f);
+  ESP_LOGCONFIG(TAG, "Update Interval: %u ms (%.1f s)", interval, interval / 1000.0f);
 }
 
 // Thin wrappers that enqueue the corresponding AT command.  Keeping them in one
