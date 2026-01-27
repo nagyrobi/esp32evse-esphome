@@ -228,7 +228,7 @@ async def to_code(config):
 
     parent = await cg.get_variable(config[CONF_ESP32EVSE_ID])
     for key, meta in _NUMBER_TYPES.items():
-        if not (number_config := config.get(key)):
+        if (number_config := config.get(key)) is None:
             continue
         defaults = meta["defaults"]
         min_value = number_config.get(CONF_MIN_VALUE, defaults[CONF_MIN_VALUE])
