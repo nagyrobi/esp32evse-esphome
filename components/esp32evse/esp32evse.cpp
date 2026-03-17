@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -16,7 +17,8 @@
 #include <inttypes.h>
 #include <limits>
 #include <string>
-#include <vector>
+#include <string_view>
+#include <system_error>
 
 namespace esphome {
 namespace esp32evse {
@@ -48,48 +50,61 @@ const char *value_after_prefix(const std::string &line, const char *prefix) {
 
 // Utility: trim whitespace and optional quotes from a string returned by the
 // EVSE so we can forward clean values to downstream consumers.
-std::string trim_copy(const char *value) {
+std::string_view trim_view(const char *value) {
   if (value == nullptr)
     return {};
-  std::string out(value);
-  size_t start = 0;
-  while (start < out.size() && isspace(static_cast<unsigned char>(out[start])))
-    ++start;
-  size_t end = out.size();
-  while (end > start && isspace(static_cast<unsigned char>(out[end - 1])))
-    --end;
-  out = out.substr(start, end - start);
+  std::string_view out(value);
+  while (!out.empty() && isspace(static_cast<unsigned char>(out.front())))
+    out.remove_prefix(1);
+  while (!out.empty() && isspace(static_cast<unsigned char>(out.back())))
+    out.remove_suffix(1);
   if (out.size() >= 2 && ((out.front() == '"' && out.back() == '"') ||
                           (out.front() == '\'' && out.back() == '\''))) {
-    out = out.substr(1, out.size() - 2);
+    out.remove_prefix(1);
+    out.remove_suffix(1);
   }
   return out;
 }
 
-// Utility: split a delimited string into trimmed tokens.  Used for parsing
-// multi-value responses such as comma separated sensor tuples.
-std::vector<std::string> split_and_trim(const std::string &input, char delimiter = ',') {
-  std::vector<std::string> parts;
+std::string trim_copy(const char *value) { return std::string(trim_view(value)); }
+
+std::string_view nth_trimmed_token(std::string_view input, size_t token_index,
+                                   char delimiter = ',') {
   size_t start = 0;
+  size_t current = 0;
   while (start <= input.size()) {
     size_t end = input.find(delimiter, start);
-    std::string part;
-    if (end == std::string::npos) {
-      part = input.substr(start);
-      parts.push_back(trim_copy(part.c_str()));
-      break;
+    if (end == std::string_view::npos)
+      end = input.size();
+
+    if (current == token_index) {
+      std::string_view token = input.substr(start, end - start);
+      while (!token.empty() && isspace(static_cast<unsigned char>(token.front())))
+        token.remove_prefix(1);
+      while (!token.empty() && isspace(static_cast<unsigned char>(token.back())))
+        token.remove_suffix(1);
+      if (token.size() >= 2 && ((token.front() == '"' && token.back() == '"') ||
+                                (token.front() == '\'' && token.back() == '\''))) {
+        token.remove_prefix(1);
+        token.remove_suffix(1);
+      }
+      return token;
     }
-    part = input.substr(start, end - start);
-    parts.push_back(trim_copy(part.c_str()));
+
+    if (end == input.size())
+      break;
     start = end + 1;
+    ++current;
   }
-  return parts;
+  return {};
 }
 
 // Utility: parse the last floating point number contained in a response.
-float parse_last_float(const std::string &input) {
+float parse_last_float(const char *input) {
+  if (input == nullptr)
+    return NAN;
   float result = NAN;
-  const char *start = input.c_str();
+  const char *start = input;
   char *endptr = nullptr;
   while (*start != '\0') {
     float value = strtof(start, &endptr);
@@ -800,8 +815,7 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   }
   if (line == "RDY") {
     ESP_LOGI(TAG, "ESP32-EVSE ready to accept commands");
-    if (this->ready_trigger_ != nullptr)
-      this->ready_trigger_->trigger();
+    this->ready_trigger_.trigger();
     return;
   }
   if (const char *value = value_after_prefix(line, "+STATE")) {
@@ -850,20 +864,23 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+CHIP")) {
-    std::string chip_info = trim_copy(value);
-    auto chip_parts = split_and_trim(chip_info);
-    if (!chip_parts.empty()) {
-      std::string formatted = chip_parts.front();
-      if (chip_parts.size() >= 2) {
-        int cores = atoi(chip_parts[1].c_str());
-        if (cores > 0) {
-          formatted += ", " + std::to_string(cores) + (cores == 1 ? " core" : " cores");
-        }
-      }
-      this->update_chip_(formatted);
-    } else {
-      this->update_chip_(chip_info);
+    std::string_view chip_info = trim_view(value);
+    std::string_view chip_name = nth_trimmed_token(chip_info, 0);
+    if (chip_name.empty())
+      chip_name = chip_info;
+
+    std::string formatted(chip_name);
+    std::string_view chip_cores = nth_trimmed_token(chip_info, 1);
+    if (!chip_cores.empty()) {
+      int cores = 0;
+      auto parse_result = std::from_chars(chip_cores.data(), chip_cores.data() + chip_cores.size(), cores);
+      if (parse_result.ec != std::errc())
+        cores = 0;
+      if (cores > 0)
+        formatted += ", " + std::to_string(cores) + (cores == 1 ? " core" : " cores");
     }
+
+    this->update_chip_(formatted);
     return;
   }
   if (const char *value = value_after_prefix(line, "+VER")) {
@@ -884,14 +901,11 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+WIFISTACFG")) {
-    std::string wifi_cfg = trim_copy(value);
-    auto wifi_parts = split_and_trim(wifi_cfg);
-    std::string ssid;
-    if (wifi_parts.size() >= 2)
-      ssid = wifi_parts[1];
-    else
+    std::string_view wifi_cfg = trim_view(value);
+    std::string_view ssid = nth_trimmed_token(wifi_cfg, 1);
+    if (ssid.empty())
       ssid = wifi_cfg;
-    this->update_wifi_sta_cfg_(ssid);
+    this->update_wifi_sta_cfg_(std::string(ssid));
     return;
   }
   if (const char *value = value_after_prefix(line, "+WIFISTAIP")) {
