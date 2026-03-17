@@ -154,7 +154,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
 
   float clamp_charging_current_value(ESP32EVSEChargingCurrentNumber *number, float value) const;
 
-  Trigger<> *get_ready_trigger() const { return this->ready_trigger_; }
+  Trigger<> *get_ready_trigger() { return &this->ready_trigger_; }
 
   void set_emeter_power_sensor(sensor::Sensor *sensor) { this->emeter_power_sensor_ = sensor; }
   void set_emeter_session_time_sensor(sensor::Sensor *sensor) {
@@ -519,7 +519,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   // the slot has never received a response and should not suppress polling yet.
   std::array<uint32_t, static_cast<size_t>(FreshnessSlot::SLOT_COUNT)> last_response_millis_{};
 
-  Trigger<> *ready_trigger_{new Trigger<>()};
+  Trigger<> ready_trigger_{};
 };
 
 // Lightweight wrappers for the ESPHome entity classes.  They forward state
