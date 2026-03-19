@@ -904,7 +904,7 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     std::string_view wifi_cfg = trim_view(value);
     std::string_view ssid = nth_trimmed_token(wifi_cfg, 1);
     if (ssid.empty())
-      ssid = wifi_cfg;
+      ssid = "<hidden>";
     this->update_wifi_sta_cfg_(std::string(ssid));
     return;
   }
