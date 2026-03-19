@@ -245,6 +245,7 @@ def _register_subscription_action(name: str, command: str) -> None:
         f"esp32evse.{name}.subscribe",
         ESP32EVSEManagedSubscriptionAction,
         _SUBSCRIPTION_SCHEMA,
+        synchronous=True,
     )
     async def subscription_action_to_code(config, action_id, template_arg, args, *, _command=command):
         component_id = _resolve_parent_id(config)
@@ -273,6 +274,7 @@ for _name, _command in _SUBSCRIPTION_TARGETS.items():
     "esp32evse.unsubscribe_all",
     ESP32EVSEUnsubscribeAllAction,
     _validate_unsubscribe_all_config,
+    synchronous=True,
 )
 async def unsubscribe_all_to_code(config, action_id, template_arg, args):
     component_id = _resolve_parent_id(config)
@@ -285,6 +287,7 @@ async def unsubscribe_all_to_code(config, action_id, template_arg, args):
     "esp32evse.force_update",
     ESP32EVSEForceUpdateAction,
     _parent_reference_config,
+    synchronous=True,
 )
 async def force_update_to_code(config, action_id, template_arg, args):
     component_id = _resolve_parent_id(config)
