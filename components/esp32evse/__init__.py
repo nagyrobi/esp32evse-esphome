@@ -254,14 +254,13 @@ def _register_subscription_action(name: str, command: str) -> None:
         cg.add(var.set_command(_command))
         period_config = config[CONF_PERIOD]
         if isinstance(period_config, str):
-            period = cg.uint32(0)
+            period_config = 0
         elif isinstance(period_config, cv.TimePeriod):
             if getattr(period_config, "is_never", False):
-                period = cg.uint32(0)
+                period_config = 0
             else:
-                period = cg.uint32(period_config.total_milliseconds)
-        else:
-            period = await cg.templatable(period_config, args, cg.uint32)
+                period_config = period_config.total_milliseconds
+        period = await cg.templatable(period_config, args, cg.uint32)
         cg.add(var.set_period(period))
         return var
 
