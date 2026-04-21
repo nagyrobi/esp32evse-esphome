@@ -7,6 +7,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -94,17 +95,20 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_EMETER_SESSION_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_SECOND,
                 icon=ICON_TIMER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+                device_class=DEVICE_CLASS_DURATION,
             ),
             cv.Optional(CONF_EMETER_CHARGING_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_SECOND,
                 icon=ICON_TIMER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+                device_class=DEVICE_CLASS_DURATION,
             ),
             cv.Optional(CONF_UPTIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_SECOND,
                 icon=ICON_TIMER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+                device_class=DEVICE_CLASS_DURATION,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_HEAP_USED): sensor.sensor_schema(
