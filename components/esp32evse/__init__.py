@@ -146,7 +146,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60000ms")),
+    .extend(cv.polling_component_schema("60s")),
     _register_component_config,
     _clamp_update_interval,
 )
@@ -174,8 +174,6 @@ async def to_code(config):
     # Finally, bind the component to the configured UART bus so serial
     # communication with the EVSE controller is possible.
     await uart.register_uart_device(var, config)
-    if config[CONF_ID] not in _REGISTERED_COMPONENT_IDS:
-        _REGISTERED_COMPONENT_IDS.append(config[CONF_ID])
 
     if CONF_ON_READY in config:
         await automation.build_automation(var.get_ready_trigger(), [], config[CONF_ON_READY])
