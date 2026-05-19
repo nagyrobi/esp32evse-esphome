@@ -12,18 +12,15 @@ from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_STEP,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     ENTITY_CATEGORY_CONFIG,
     UNIT_AMPERE,
     UNIT_HOUR,
     UNIT_KILOWATT,
+    UNIT_KILOWATT_HOURS,
 )
-
-try:
-    from esphome.const import UNIT_KILOWATT_HOUR
-except ImportError:  # pragma: no cover - compatibility with older ESPHome releases
-    from esphome.const import UNIT_KILOWATT_HOURS as UNIT_KILOWATT_HOUR
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
 
@@ -140,7 +137,7 @@ _NUMBER_TYPES = {
     ),
     CONF_CONSUMPTION_LIMIT: _make_number_type(
         icon="mdi:gauge",
-        unit=UNIT_KILOWATT_HOUR,
+        unit=UNIT_KILOWATT_HOURS,
         default_min=0.0,
         default_max=100.0,
         default_step=0.1,
@@ -151,7 +148,7 @@ _NUMBER_TYPES = {
     ),
     CONF_DEFAULT_CONSUMPTION_LIMIT: _make_number_type(
         icon="mdi:gauge",
-        unit=UNIT_KILOWATT_HOUR,
+        unit=UNIT_KILOWATT_HOURS,
         default_min=0.0,
         default_max=100.0,
         default_step=0.1,
@@ -168,6 +165,7 @@ _NUMBER_TYPES = {
         default_max=24.0,
         default_step=0.5,
         default_multiplier=3600.0,
+        device_class=DEVICE_CLASS_DURATION,
         command="AT+CHTIMELIM",
         setter="set_charging_time_limit_number",
     ),
@@ -178,6 +176,7 @@ _NUMBER_TYPES = {
         default_max=24.0,
         default_step=0.5,
         default_multiplier=3600.0,
+        device_class=DEVICE_CLASS_DURATION,
         entity_category=ENTITY_CATEGORY_CONFIG,
         command="AT+DEFCHTIMELIM",
         setter="set_default_charging_time_limit_number",
