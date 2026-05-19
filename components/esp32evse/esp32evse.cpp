@@ -1,1619 +1,293 @@
-// Implementation of the ESP32 EVSE ESPHome component.  This file contains the
-// UART protocol glue that synchronises charger state with the generated
-// entities configured in YAML.
-#include "esp32evse.h"
+"""Core registration helpers for the ESP32 EVSE custom component.
 
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
+This module wires the ESPHome code generation (``codegen``) hooks for the
+component so that the rest of the integration can register their entities
+against a strongly-typed C++ implementation.  The inline comments below explain
+why each block exists and how it fits within ESPHome's build pipeline.
+"""
 
-#include <algorithm>
-#include <charconv>
-#include <cctype>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <inttypes.h>
-#include <limits>
-#include <string>
-#include <string_view>
-#include <system_error>
+# Bring in the ESPHome code generation helpers so we can describe the C++ class
+# hierarchy that backs the component at compile time.
+import esphome.automation as automation
+import esphome.codegen as cg
+# Provide validation utilities to make sure user supplied YAML configuration is
+# structurally correct before we attempt to generate any C++ code.
+import esphome.config_validation as cv
+# The component communicates via UART, therefore we need to import and require
+# the UART helpers to bind the C++ object to ESPHome's UART subsystem.
+from esphome.components import uart
+from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 
-namespace esphome {
-namespace esp32evse {
+# Make sure UART gets compiled alongside our component because we depend on it
+# both at configuration time and at runtime on the microcontroller.
+AUTO_LOAD = ["uart"]
+DEPENDENCIES = ["uart"]
+# Document the maintainer so users know who to reach out to for reviews.
+CODEOWNERS = ["@nagyrobi"]
 
-static const char *const TAG = "esp32evse";
+esp32evse_ns = cg.esphome_ns.namespace("esp32evse")
+# Declare the C++ class that implements the logic.  It inherits from
+# ``PollingComponent`` so ESPHome regularly calls ``update`` and from
+# ``UARTDevice`` so it can talk to the EVSE controller over serial.
+ESP32EVSEComponent = esp32evse_ns.class_(
+    "ESP32EVSEComponent", cg.PollingComponent, uart.UARTDevice
+)
+# Automation helpers exposed by this integration.
+ESP32EVSEManagedSubscriptionAction = esp32evse_ns.class_(
+    "ESP32EVSEManagedSubscriptionAction",
+    automation.Action,
+    cg.Parented.template(ESP32EVSEComponent),
+)
+ESP32EVSEUnsubscribeAllAction = esp32evse_ns.class_(
+    "ESP32EVSEUnsubscribeAllAction",
+    automation.Action,
+    cg.Parented.template(ESP32EVSEComponent),
+)
+ESP32EVSEForceUpdateAction = esp32evse_ns.class_(
+    "ESP32EVSEForceUpdateAction",
+    automation.Action,
+    cg.Parented.template(ESP32EVSEComponent),
+)
 
-namespace {
+CONF_ESP32EVSE_ID = "esp32evse_id"
+CONF_ON_READY = "on_ready"
 
-constexpr uint32_t kDefaultUpdateIntervalMs = 60'000;
-constexpr uint32_t kMinUpdateIntervalMs = 10'000;
-constexpr uint32_t kMaxUpdateIntervalMs = 600'000;
-constexpr size_t kRxChunkSize = 64;
-constexpr size_t kMaxLineLength = 512;
+MIN_UPDATE_INTERVAL_MS = 10_000
+MAX_UPDATE_INTERVAL_MS = 600_000
 
-// Utility: return a pointer to the substring that follows ``prefix`` if the
-// incoming UART line starts with it.  Many EVSE responses follow a predictable
-// ``KEY=VALUE`` structure, so this helper keeps the parsing code terse.
-const char *value_after_prefix(const std::string &line, const char *prefix) {
-  const size_t prefix_len = strlen(prefix);
-  if (line.compare(0, prefix_len, prefix) != 0)
-    return nullptr;
-  size_t pos = prefix_len;
-  if (pos < line.size() && (line[pos] == '=' || line[pos] == ':'))
-    ++pos;
-  while (pos < line.size() && isspace(static_cast<unsigned char>(line[pos])))
-    ++pos;
-  return line.c_str() + pos;
-}
+CONF_PERIOD = "period"
 
-// Utility: trim whitespace and optional quotes from a string returned by the
-// EVSE so we can forward clean values to downstream consumers.
-std::string_view trim_view(const char *value) {
-  if (value == nullptr)
-    return {};
-  std::string_view out(value);
-  while (!out.empty() && isspace(static_cast<unsigned char>(out.front())))
-    out.remove_prefix(1);
-  while (!out.empty() && isspace(static_cast<unsigned char>(out.back())))
-    out.remove_suffix(1);
-  if (out.size() >= 2 && ((out.front() == '"' && out.back() == '"') ||
-                          (out.front() == '\'' && out.back() == '\''))) {
-    out.remove_prefix(1);
-    out.remove_suffix(1);
-  }
-  return out;
-}
+_REGISTERED_COMPONENT_IDS = []
 
-std::string trim_copy(const char *value) { return std::string(trim_view(value)); }
 
-std::string_view nth_trimmed_token(std::string_view input, size_t token_index,
-                                   char delimiter = ',') {
-  size_t start = 0;
-  size_t current = 0;
-  while (start <= input.size()) {
-    size_t end = input.find(delimiter, start);
-    if (end == std::string_view::npos)
-      end = input.size();
+def _normalize_subscription_period(value):
+    """Accept integers (milliseconds) or config-time durations."""
 
-    if (current == token_index) {
-      std::string_view token = input.substr(start, end - start);
-      while (!token.empty() && isspace(static_cast<unsigned char>(token.front())))
-        token.remove_prefix(1);
-      while (!token.empty() && isspace(static_cast<unsigned char>(token.back())))
-        token.remove_suffix(1);
-      if (token.size() >= 2 && ((token.front() == '"' && token.back() == '"') ||
-                                (token.front() == '\'' && token.back() == '\''))) {
-        token.remove_prefix(1);
-        token.remove_suffix(1);
-      }
-      return token;
-    }
+    if isinstance(value, cv.Lambda):
+        return value
+    if isinstance(value, cv.TimePeriod):
+        if getattr(value, "is_never", False):
+            return value
+        total_ms = getattr(value, "total_milliseconds", None)
+        if total_ms == 0:
+            raise cv.Invalid("period must be greater than 0; use 'never' to unsubscribe")
+        return value
+    if isinstance(value, str) and value.strip().lower() == "never":
+        return "never"
+    if isinstance(value, int):
+        value = cv.uint32_t(value)
+        if value == 0:
+            raise cv.Invalid("period must be greater than 0; use 'never' to unsubscribe")
+        return cv.TimePeriod(milliseconds=value)
+    if isinstance(value, float):
+        raise cv.Invalid("period must be specified as whole milliseconds")
+    period = cv.positive_time_period_milliseconds(value)
+    if isinstance(period, cv.TimePeriod):
+        total_ms = getattr(period, "total_milliseconds", None)
+        if total_ms == 0 and not getattr(period, "is_never", False):
+            raise cv.Invalid("period must be greater than 0; use 'never' to unsubscribe")
+    return period
 
-    if (end == input.size())
-      break;
-    start = end + 1;
-    ++current;
-  }
-  return {};
-}
 
-// Utility: parse the last floating point number contained in a response.
-float parse_last_float(const char *input) {
-  if (input == nullptr)
-    return NAN;
-  float result = NAN;
-  const char *start = input;
-  char *endptr = nullptr;
-  while (*start != '\0') {
-    float value = strtof(start, &endptr);
-    if (endptr == start) {
-      ++start;
-      continue;
-    }
-    result = value;
-    start = endptr;
-  }
-  return result;
-}
+def _resolve_parent_id(config):
+    component_id = config.get(CONF_ESP32EVSE_ID)
+    if component_id is not None:
+        return component_id
+    if len(_REGISTERED_COMPONENT_IDS) == 1:
+        return _REGISTERED_COMPONENT_IDS[0]
+    raise cv.Invalid(
+        "esp32evse_id must be specified when multiple ESP32 EVSE components are configured"
+    )
 
-}  // namespace
 
-void ESP32EVSEComponent::CommandString::clear() {
-  this->length_ = 0;
-  this->buffer_[0] = '\0';
-}
+def _parent_reference_config(value):
+    if value is None:
+        value = {}
+    elif not isinstance(value, dict):
+        value = {CONF_ESP32EVSE_ID: value}
+    return cv.Schema({cv.Optional(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent)})(value)
 
-void ESP32EVSEComponent::CommandString::assign(const char *value) {
-  this->clear();
-  if (value == nullptr)
-    return;
-  size_t to_copy = std::min(strlen(value), MAX_LENGTH);
-  if (to_copy > 0)
-    memcpy(this->buffer_, value, to_copy);
-  this->length_ = to_copy;
-  this->buffer_[this->length_] = '\0';
-}
 
-void ESP32EVSEComponent::CommandString::append(const char *value) {
-  if (value == nullptr)
-    return;
-  size_t remaining = MAX_LENGTH - this->length_;
-  if (remaining == 0)
-    return;
-  size_t to_copy = std::min(strlen(value), remaining);
-  if (to_copy > 0)
-    memcpy(this->buffer_ + this->length_, value, to_copy);
-  this->length_ += to_copy;
-  this->buffer_[this->length_] = '\0';
-}
+def _validate_unsubscribe_all_config(value):
+    return _parent_reference_config(value)
 
-void ESP32EVSEComponent::CommandString::append_char(char value) {
-  if (this->length_ >= MAX_LENGTH)
-    return;
-  this->buffer_[this->length_++] = value;
-  this->buffer_[this->length_] = '\0';
-}
 
-void ESP32EVSEComponent::CommandString::append_decimal(int32_t value) {
-  if (this->length_ >= MAX_LENGTH)
-    return;
-  int written = snprintf(this->buffer_ + this->length_, MAX_LENGTH + 1 - this->length_, "%ld",
-                         static_cast<long>(value));
-  if (written <= 0)
-    return;
-  size_t consumed = std::min(static_cast<size_t>(written), MAX_LENGTH - this->length_);
-  this->length_ += consumed;
-  this->buffer_[this->length_] = '\0';
-}
+def _clamp_update_interval(config):
+    """Ensure ``update_interval`` stays within the supported range."""
 
-void ESP32EVSEComponent::CommandString::append_unsigned(uint32_t value) {
-  if (this->length_ >= MAX_LENGTH)
-    return;
-  int written = snprintf(this->buffer_ + this->length_, MAX_LENGTH + 1 - this->length_, "%lu",
-                         static_cast<unsigned long>(value));
-  if (written <= 0)
-    return;
-  size_t consumed = std::min(static_cast<size_t>(written), MAX_LENGTH - this->length_);
-  this->length_ += consumed;
-  this->buffer_[this->length_] = '\0';
-}
+    interval = config.get(CONF_UPDATE_INTERVAL)
+    if interval is None:
+        return config
 
-bool ESP32EVSEComponent::PendingCommandQueue::push_back(const PendingCommand &command) {
-  if (this->size_ >= MAX_PENDING_COMMANDS)
-    return false;
-  this->commands_[this->size_] = command;
-  ++this->size_;
-  return true;
-}
+    total_ms = interval.total_milliseconds
+    if total_ms < MIN_UPDATE_INTERVAL_MS:
+        raise cv.Invalid("update_interval must be at least 10s")
+    if total_ms > MAX_UPDATE_INTERVAL_MS:
+        raise cv.Invalid("update_interval may not exceed 10min")
+    return config
 
-bool ESP32EVSEComponent::PendingCommandQueue::insert(size_t index, const PendingCommand &command) {
-  if (this->size_ >= MAX_PENDING_COMMANDS)
-    return false;
-  if (index > this->size_)
-    index = this->size_;
-  for (size_t i = this->size_; i > index; --i) {
-    this->commands_[i] = this->commands_[i - 1];
-  }
-  this->commands_[index] = command;
-  ++this->size_;
-  return true;
-}
 
-void ESP32EVSEComponent::PendingCommandQueue::pop_front() {
-  if (this->size_ == 0)
-    return;
-  for (size_t i = 1; i < this->size_; ++i) {
-    this->commands_[i - 1] = this->commands_[i];
-  }
-  --this->size_;
-}
+def _register_component_config(config):
+    component_id = config[CONF_ID]
+    if component_id not in _REGISTERED_COMPONENT_IDS:
+        _REGISTERED_COMPONENT_IDS.append(component_id)
+    return config
 
-// Called once at boot to schedule initial state requests from the EVSE.
-void ESP32EVSEComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP32 EVSE component");
-  this->read_buffer_.reserve(kMaxLineLength);
 
-  this->set_timeout(1000, [this]() {
-    this->request_state_update();
-    this->request_enable_update();
-    this->request_pending_authorization_update();
-    if (this->has_error_binary_sensors_())
-      this->request_error_flags_update();
-
-    if (this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr)
-      this->request_temperature_update();
-    if (this->charging_current_number_ != nullptr)
-      this->request_charging_current_update();
-    if (this->emeter_power_sensor_ != nullptr)
-      this->request_emeter_power_update();
-    if (this->emeter_session_time_sensor_ != nullptr)
-      this->request_emeter_session_time_update();
-    if (this->emeter_charging_time_sensor_ != nullptr)
-      this->request_emeter_charging_time_update();
-    if (this->uptime_sensor_ != nullptr)
-      this->request_uptime_update();
-    if (this->chip_text_sensor_ != nullptr)
-      this->request_chip_update();
-    if (this->version_text_sensor_ != nullptr)
-      this->request_version_update();
-    if (this->idf_version_text_sensor_ != nullptr)
-      this->request_idf_version_update();
-    if (this->build_time_text_sensor_ != nullptr)
-      this->request_build_time_update();
-    if (this->device_time_text_sensor_ != nullptr)
-      this->request_device_time_update();
-    if (this->wifi_sta_ssid_text_sensor_ != nullptr)
-      this->request_wifi_sta_cfg_update();
-    if (this->wifi_sta_ip_text_sensor_ != nullptr)
-      this->request_wifi_sta_ip_update();
-    if (this->wifi_sta_mac_text_sensor_ != nullptr)
-      this->request_wifi_sta_mac_update();
-    if (this->device_name_text_sensor_ != nullptr)
-      this->request_device_name_update();
-    if (this->available_switch_ != nullptr)
-      this->request_available_update();
-    if (this->request_authorization_switch_ != nullptr)
-      this->request_request_authorization_update();
-    if (this->emeter_three_phase_switch_ != nullptr)
-      this->request_emeter_three_phase_update();
-    if (this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr)
-      this->request_heap_update();
-    if (this->energy_consumption_sensor_ != nullptr)
-      this->request_energy_consumption_update();
-    if (this->total_energy_consumption_sensor_ != nullptr)
-      this->request_total_energy_consumption_update();
-    if (this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
-        this->voltage_l3_sensor_ != nullptr)
-      this->request_voltage_update();
-    if (this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
-        this->current_l3_sensor_ != nullptr)
-      this->request_current_update();
-    if (this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr)
-      this->request_wifi_status_update();
-    if (this->charging_limit_reached_binary_sensor_ != nullptr)
-      this->request_charging_limit_reached_update();
-    if (this->default_charging_current_number_ != nullptr)
-      this->request_default_charging_current_update();
-    if (this->maximum_charging_current_number_ != nullptr)
-      this->request_maximum_charging_current_update();
-    if (this->consumption_limit_number_ != nullptr)
-      this->request_consumption_limit_update();
-    if (this->default_consumption_limit_number_ != nullptr)
-      this->request_default_consumption_limit_update();
-    if (this->charging_time_limit_number_ != nullptr)
-      this->request_charging_time_limit_update();
-    if (this->default_charging_time_limit_number_ != nullptr)
-      this->request_default_charging_time_limit_update();
-    if (this->under_power_limit_number_ != nullptr)
-      this->request_under_power_limit_update();
-    if (this->default_under_power_limit_number_ != nullptr)
-      this->request_default_under_power_limit_update();
-  });
-}
-
-// Process incoming UART bytes and drive the command queue.  This keeps the ESPHome
-// scheduler responsive even while waiting for EVSE acknowledgements.
-void ESP32EVSEComponent::loop() {
-  uint8_t rx_buffer[kRxChunkSize];
-  while (this->available()) {
-    size_t available = this->available();
-    if (available == 0)
-      break;
-    size_t to_read = std::min(available, kRxChunkSize);
-    this->read_array(rx_buffer, to_read);
-    for (size_t i = 0; i < to_read; ++i) {
-      char c = static_cast<char>(rx_buffer[i]);
-      if (c == '\n' || c == '\r') {
-        if (!this->read_buffer_.empty()) {
-          this->process_line_(this->read_buffer_);
-          this->read_buffer_.clear();
+# Describe what options the YAML configuration block accepts.  We enforce that
+# a new C++ instance is created, that UART is configured with the required
+# arguments, and that the component polls every 60 seconds by default while
+# allowing users to override the interval within the supported range.
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ESP32EVSEComponent),
+            cv.Optional(CONF_ON_READY): automation.validate_automation(single=True),
         }
-      } else {
-        this->read_buffer_.push_back(c);
-        if (this->read_buffer_.size() > kMaxLineLength) {
-          ESP_LOGW(TAG, "Line too long (%zu), discarding partial data", this->read_buffer_.size());
-          this->read_buffer_.clear();
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.polling_component_schema("60s")),
+    _register_component_config,
+    _clamp_update_interval,
+)
+
+# Perform a final check after parsing so the build fails fast if the user
+# forgot to wire the UART RX/TX pins—communication would not work otherwise.
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "esp32evse", require_tx=True, require_rx=True
+)
+
+
+async def to_code(config):
+    """Translate the validated YAML configuration into C++ code.
+
+    We allocate a new component instance, register it with ESPHome's scheduler,
+    and then hook it into the UART subsystem so runtime calls reach the EVSE.
+    """
+
+    # Create the backing C++ object and keep track of it so other modules can
+    # look it up when they need to register sensors, buttons, etc.
+    var = cg.new_Pvariable(config[CONF_ID])
+    # Ensure ESPHome schedules ``setup``/``loop``/``update`` callbacks for the
+    # component by registering it as a polling component.
+    await cg.register_component(var, config)
+    # Finally, bind the component to the configured UART bus so serial
+    # communication with the EVSE controller is possible.
+    await uart.register_uart_device(var, config)
+
+    if CONF_ON_READY in config:
+        await automation.build_automation(var.get_ready_trigger(), [], config[CONF_ON_READY])
+
+
+_SUBSCRIPTION_TARGETS = {
+    # Text sensors
+    "state": '"+STATE"',
+    "chip": '"+CHIP"',
+    "version": '"+VER"',
+    "idf_version": '"+IDFVER"',
+    "build_time": '"+BUILDTIME"',
+    "device_time": '"+TIME"',
+    "wifi_sta_ssid": '"+WIFISTACFG"',
+    "wifi_sta_ip": '"+WIFISTAIP"',
+    "wifi_sta_mac": '"+WIFISTAMAC"',
+    "device_name": '"+DEVNAME"',
+    # Switches
+    "enable": '"+ENABLE"',
+    "available": '"+AVAILABLE"',
+    "request_authorization": '"+REQAUTH"',
+    "three_phase_meter": '"+EMETERTHREEPHASE"',
+    # Sensors
+    "temperature": '"+TEMP"',
+    "emeter_power": '"+EMETERPOWER"',
+    "emeter_session_time": '"+EMETERSESTIME"',
+    "emeter_charging_time": '"+EMETERCHTIME"',
+    "uptime": '"+UPTIME"',
+    "heap": '"+HEAP"',
+    "energy_consumption": '"+EMETERCONSUM"',
+    "total_energy_consumption": '"+EMETERTOTCONSUM"',
+    "voltage": '"+EMETERVOLTAGE"',
+    "current": '"+EMETERCURRENT"',
+    "wifi_rssi": '"+WIFISTACONN"',
+    # Binary sensors
+    "pending_authorization": '"+PENDAUTH"',
+    "wifi_connected": '"+WIFISTACONN"',
+    "charging_limit_reached": '"+LIMREACH"',
+    "error": '"+ERROR"',
+    # Numbers
+    "charging_current": '"+CHCUR"',
+    "default_charging_current": '"+DEFCHCUR"',
+    "maximum_charging_current": '"+MAXCHCUR"',
+    "consumption_limit": '"+CONSUMLIM"',
+    "default_consumption_limit": '"+DEFCONSUMLIM"',
+    "charging_time_limit": '"+CHTIMELIM"',
+    "default_charging_time_limit": '"+DEFCHTIMELIM"',
+    "under_power_limit": '"+UNDERPOWERLIM"',
+    "default_under_power_limit": '"+DEFUNDERPOWERLIM"',
+}
+
+_SUBSCRIPTION_SCHEMA = automation.maybe_conf(
+    CONF_PERIOD,
+    cv.Schema(
+        {
+            cv.Optional(CONF_ESP32EVSE_ID): cv.use_id(ESP32EVSEComponent),
+            cv.Required(CONF_PERIOD): cv.templatable(_normalize_subscription_period),
         }
-      }
-    }
-  }
-
-  const uint32_t now = millis();
-  while (!this->pending_commands_.empty()) {
-    auto &front = this->pending_commands_.front();
-    if (!front.sent) {
-      this->process_next_command_();
-      break;
-    }
-    if (now - front.start_time < 5000) {
-      break;
-    }
-    ESP_LOGW(TAG, "Command '%s' timed out", front.command.c_str());
-    if (this->timeout_fault_binary_sensor_ != nullptr) {
-      this->timeout_fault_binary_sensor_->publish_state(true);
-    }
-    this->handle_ack_(false, true);
-  }
-}
-
-// Remember when the EVSE last answered a query.  Fresh slots allow the periodic
-// updater to skip issuing another AT command when subscription data already
-// delivered a recent value.
-void ESP32EVSEComponent::mark_response_received_(FreshnessSlot slot) {
-  size_t index = static_cast<size_t>(slot);
-  if (index >= this->last_response_millis_.size())
-    return;
-  this->last_response_millis_[index] = millis();
-}
-
-// Return ``true`` when the most recent response in ``slot`` is still within the
-// freshness window (half of the configured polling interval).  Callers can then
-// skip sending duplicate commands and keep the UART queue short for sensors that
-// require a full round trip.
-bool ESP32EVSEComponent::should_skip_poll_(FreshnessSlot slot) const {
-  size_t index = static_cast<size_t>(slot);
-  if (index >= this->last_response_millis_.size())
-    return false;
-  uint32_t last = this->last_response_millis_[index];
-  if (last == 0)
-    return false;
-  uint32_t interval = this->get_update_interval();
-  if (interval == 0)
-    interval = kDefaultUpdateIntervalMs;
-  if (interval < kMinUpdateIntervalMs)
-    interval = kMinUpdateIntervalMs;
-  if (interval > kMaxUpdateIntervalMs)
-    interval = kMaxUpdateIntervalMs;
-  uint32_t freshness_window = interval / 2;
-  if (freshness_window == 0)
-    freshness_window = 1;
-  uint32_t now_ms = millis();
-  uint32_t elapsed = now_ms - last;
-  return elapsed < freshness_window;
-}
-
-// Periodic refresh triggered by ``PollingComponent`` (60 seconds by default,
-// configurable via ``update_interval``).  Each request checks
-// ``should_skip_poll_`` so freshly updated subscription-backed sensors avoid
-// redundant AT commands.
-void ESP32EVSEComponent::perform_update_(bool force) {
-  if (force || !this->should_skip_poll_(FreshnessSlot::STATE))
-    this->request_state_update();
-  if (force || !this->should_skip_poll_(FreshnessSlot::ENABLE))
-    this->request_enable_update();
-  if (force || !this->should_skip_poll_(FreshnessSlot::PENDING_AUTHORIZATION))
-    this->request_pending_authorization_update();
-  if (this->has_error_binary_sensors_() && (force || !this->should_skip_poll_(FreshnessSlot::ERROR_FLAGS)))
-    this->request_error_flags_update();
-
-  if ((this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr) &&
-      (force || !this->should_skip_poll_(FreshnessSlot::TEMPERATURE)))
-    this->request_temperature_update();
-  if (this->charging_current_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::CHARGING_CURRENT)))
-    this->request_charging_current_update();
-  if (this->emeter_power_sensor_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::EMETER_POWER)))
-    this->request_emeter_power_update();
-  if (this->emeter_session_time_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::EMETER_SESSION_TIME)))
-    this->request_emeter_session_time_update();
-  if (this->emeter_charging_time_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::EMETER_CHARGING_TIME)))
-    this->request_emeter_charging_time_update();
-  if (this->uptime_sensor_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::UPTIME)))
-    this->request_uptime_update();
-  if ((this->heap_used_sensor_ != nullptr || this->heap_total_sensor_ != nullptr) &&
-      (force || !this->should_skip_poll_(FreshnessSlot::HEAP)))
-    this->request_heap_update();
-  if (this->energy_consumption_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::ENERGY_CONSUMPTION)))
-    this->request_energy_consumption_update();
-  if (this->total_energy_consumption_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::TOTAL_ENERGY_CONSUMPTION)))
-    this->request_total_energy_consumption_update();
-  if ((this->voltage_l1_sensor_ != nullptr || this->voltage_l2_sensor_ != nullptr ||
-       this->voltage_l3_sensor_ != nullptr) &&
-      (force || !this->should_skip_poll_(FreshnessSlot::VOLTAGE)))
-    this->request_voltage_update();
-  if ((this->current_l1_sensor_ != nullptr || this->current_l2_sensor_ != nullptr ||
-       this->current_l3_sensor_ != nullptr) &&
-      (force || !this->should_skip_poll_(FreshnessSlot::CURRENT)))
-    this->request_current_update();
-  if ((this->wifi_rssi_sensor_ != nullptr || this->wifi_connected_binary_sensor_ != nullptr) &&
-      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STATUS)))
-    this->request_wifi_status_update();
-  if (this->charging_limit_reached_binary_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::CHARGING_LIMIT_REACHED)))
-    this->request_charging_limit_reached_update();
-  if (this->available_switch_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::AVAILABLE)))
-    this->request_available_update();
-  if (this->request_authorization_switch_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::REQUEST_AUTHORIZATION)))
-    this->request_request_authorization_update();
-  if (this->emeter_three_phase_switch_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::EMETER_THREE_PHASE)))
-    this->request_emeter_three_phase_update();
-
-  // Slow-changing parameters are also requested every poll.  The
-  // ``should_skip_poll_`` guard prevents redundant commands when a subscription
-  // delivered fresher data moments earlier.
-  if (this->default_charging_current_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_CURRENT)))
-    this->request_default_charging_current_update();
-  if (this->maximum_charging_current_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT)))
-    this->request_maximum_charging_current_update();
-  if (this->consumption_limit_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::CONSUMPTION_LIMIT)))
-    this->request_consumption_limit_update();
-  if (this->default_consumption_limit_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT)))
-    this->request_default_consumption_limit_update();
-  if (this->charging_time_limit_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::CHARGING_TIME_LIMIT)))
-    this->request_charging_time_limit_update();
-  if (this->default_charging_time_limit_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT)))
-    this->request_default_charging_time_limit_update();
-  if (this->under_power_limit_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::UNDER_POWER_LIMIT)))
-    this->request_under_power_limit_update();
-  if (this->default_under_power_limit_number_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT)))
-    this->request_default_under_power_limit_update();
-  if (this->wifi_sta_ssid_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STA_CFG)))
-    this->request_wifi_sta_cfg_update();
-  if (this->wifi_sta_ip_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STA_IP)))
-    this->request_wifi_sta_ip_update();
-  if (this->wifi_sta_mac_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::WIFI_STA_MAC)))
-    this->request_wifi_sta_mac_update();
-  if (this->device_name_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::DEVICE_NAME)))
-    this->request_device_name_update();
-  if (this->chip_text_sensor_ != nullptr && (force || !this->should_skip_poll_(FreshnessSlot::CHIP)))
-    this->request_chip_update();
-  if (this->version_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::VERSION)))
-    this->request_version_update();
-  if (this->idf_version_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::IDF_VERSION)))
-    this->request_idf_version_update();
-  if (this->build_time_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::BUILD_TIME)))
-    this->request_build_time_update();
-  if (this->device_time_text_sensor_ != nullptr &&
-      (force || !this->should_skip_poll_(FreshnessSlot::DEVICE_TIME)))
-    this->request_device_time_update();
-}
-
-void ESP32EVSEComponent::update() { this->perform_update_(false); }
-
-void ESP32EVSEComponent::force_update() { this->perform_update_(true); }
-
-// Emit human readable configuration details in the ESPHome logs.
-void ESP32EVSEComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32EVSE UART:");
-  auto *uart_parent = this->parent_;
-  if (uart_parent != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Baud Rate: %u", uart_parent->get_baud_rate());
-    ESP_LOGCONFIG(TAG, "  Data Bits: %u", uart_parent->get_data_bits());
-    ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(uart::parity_to_str(uart_parent->get_parity())));
-    ESP_LOGCONFIG(TAG, "  Stop Bits: %u", uart_parent->get_stop_bits());
-    size_t rx_buffer_size = uart_parent->get_rx_buffer_size();
-    if (rx_buffer_size != 0) {
-      ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", rx_buffer_size);
-    }
-  } else {
-    ESP_LOGW(TAG, "  No UART parent configured");
-  }
-
-  uint32_t interval = this->get_update_interval();
-  if (interval == 0)
-    interval = kDefaultUpdateIntervalMs;
-  if (interval < kMinUpdateIntervalMs)
-    interval = kMinUpdateIntervalMs;
-  if (interval > kMaxUpdateIntervalMs)
-    interval = kMaxUpdateIntervalMs;
-  ESP_LOGCONFIG(TAG, "Update Interval: %u ms (%.1f s)", interval, interval / 1000.0f);
-}
-
-// Thin wrappers that enqueue the corresponding AT command.  Keeping them in one
-// place makes it easy to audit which controller features we query.
-void ESP32EVSEComponent::request_state_update() { this->send_command_("AT+STATE?"); }
-void ESP32EVSEComponent::request_enable_update() { this->send_command_("AT+ENABLE?"); }
-void ESP32EVSEComponent::request_temperature_update() { this->send_command_("AT+TEMP?"); }
-void ESP32EVSEComponent::request_charging_current_update() { this->send_command_("AT+CHCUR?"); }
-void ESP32EVSEComponent::request_emeter_power_update() { this->send_command_("AT+EMETERPOWER?"); }
-void ESP32EVSEComponent::request_emeter_session_time_update() {
-  this->send_command_("AT+EMETERSESTIME?");
-}
-void ESP32EVSEComponent::request_emeter_charging_time_update() {
-  this->send_command_("AT+EMETERCHTIME?");
-}
-void ESP32EVSEComponent::request_uptime_update() { this->send_command_("AT+UPTIME?"); }
-void ESP32EVSEComponent::request_chip_update() { this->send_command_("AT+CHIP?"); }
-void ESP32EVSEComponent::request_version_update() { this->send_command_("AT+VER?"); }
-void ESP32EVSEComponent::request_idf_version_update() { this->send_command_("AT+IDFVER?"); }
-void ESP32EVSEComponent::request_build_time_update() { this->send_command_("AT+BUILDTIME?"); }
-void ESP32EVSEComponent::request_device_time_update() { this->send_command_("AT+TIME?"); }
-void ESP32EVSEComponent::request_wifi_sta_cfg_update() { this->send_command_("AT+WIFISTACFG?"); }
-void ESP32EVSEComponent::request_wifi_sta_ip_update() { this->send_command_("AT+WIFISTAIP?"); }
-void ESP32EVSEComponent::request_wifi_sta_mac_update() { this->send_command_("AT+WIFISTAMAC?"); }
-void ESP32EVSEComponent::request_device_name_update() { this->send_command_("AT+DEVNAME?"); }
-void ESP32EVSEComponent::request_available_update() { this->send_command_("AT+AVAILABLE?"); }
-void ESP32EVSEComponent::request_request_authorization_update() {
-  this->send_command_("AT+REQAUTH?");
-}
-void ESP32EVSEComponent::request_emeter_three_phase_update() {
-  this->send_command_("AT+EMETERTHREEPHASE?");
-}
-void ESP32EVSEComponent::request_heap_update() { this->send_command_("AT+HEAP?"); }
-void ESP32EVSEComponent::request_energy_consumption_update() {
-  this->send_command_("AT+EMETERCONSUM?");
-}
-void ESP32EVSEComponent::request_total_energy_consumption_update() {
-  this->send_command_("AT+EMETERTOTCONSUM?");
-}
-void ESP32EVSEComponent::request_voltage_update() { this->send_command_("AT+EMETERVOLTAGE?"); }
-void ESP32EVSEComponent::request_current_update() { this->send_command_("AT+EMETERCURRENT?"); }
-void ESP32EVSEComponent::request_wifi_status_update() { this->send_command_("AT+WIFISTACONN?"); }
-void ESP32EVSEComponent::request_default_charging_current_update() {
-  this->send_command_("AT+DEFCHCUR?");
-}
-void ESP32EVSEComponent::request_maximum_charging_current_update() {
-  this->send_command_("AT+MAXCHCUR?");
-}
-void ESP32EVSEComponent::request_consumption_limit_update() {
-  this->send_command_("AT+CONSUMLIM?");
-}
-void ESP32EVSEComponent::request_default_consumption_limit_update() {
-  this->send_command_("AT+DEFCONSUMLIM?");
-}
-void ESP32EVSEComponent::request_charging_time_limit_update() {
-  this->send_command_("AT+CHTIMELIM?");
-}
-void ESP32EVSEComponent::request_default_charging_time_limit_update() {
-  this->send_command_("AT+DEFCHTIMELIM?");
-}
-void ESP32EVSEComponent::request_under_power_limit_update() {
-  this->send_command_("AT+UNDERPOWERLIM?");
-}
-void ESP32EVSEComponent::request_default_under_power_limit_update() {
-  this->send_command_("AT+DEFUNDERPOWERLIM?");
-}
-void ESP32EVSEComponent::request_pending_authorization_update() {
-  this->send_command_("AT+PENDAUTH?");
-}
-void ESP32EVSEComponent::request_charging_limit_reached_update() {
-  this->send_command_("AT+LIMREACH?");
-}
-
-void ESP32EVSEComponent::request_error_flags_update() { this->send_command_("AT+ERROR?"); }
-
-// Translate ESPHome entity state changes into AT commands.
-void ESP32EVSEComponent::write_enable_state(bool enabled) {
-  PendingCommand pending;
-  pending.type = PendingCommand::Type::ENABLE_WRITE;
-  // Remember the requested state so we can publish it once the EVSE confirms
-  // the write.
-  pending.bool_value = enabled;
-  pending.command.assign("AT+ENABLE=");
-  pending.command.append_char(enabled ? '1' : '0');
-  this->queue_pending_command_(pending);
-}
-
-void ESP32EVSEComponent::write_available_state(bool available) {
-  PendingCommand pending;
-  pending.type = PendingCommand::Type::AVAILABLE_WRITE;
-  // Store the intended availability state so the acknowledgement handler can
-  // publish it instead of the optimistic toggle response.
-  pending.bool_value = available;
-  pending.command.assign("AT+AVAILABLE=");
-  pending.command.append_char(available ? '1' : '0');
-  this->queue_pending_command_(pending);
-}
-
-void ESP32EVSEComponent::write_request_authorization_state(bool request) {
-  PendingCommand pending;
-  pending.type = PendingCommand::Type::REQUEST_AUTHORIZATION_WRITE;
-  // Persist the desired authorization request flag to publish after a
-  // successful acknowledgement.
-  pending.bool_value = request;
-  pending.command.assign("AT+REQAUTH=");
-  pending.command.append_char(request ? '1' : '0');
-  this->queue_pending_command_(pending);
-}
-
-void ESP32EVSEComponent::write_emeter_three_phase_state(bool enabled) {
-  PendingCommand pending;
-  pending.type = PendingCommand::Type::EMETER_THREE_PHASE_WRITE;
-  pending.bool_value = enabled;
-  pending.command.assign("AT+EMETERTHREEPHASE=");
-  pending.command.append_char(enabled ? '1' : '0');
-  this->queue_pending_command_(pending);
-}
-
-void ESP32EVSEComponent::write_charging_current(float current) {
-  this->write_number_value(this->charging_current_number_, current);
-}
-
-float ESP32EVSEComponent::clamp_charging_current_value(ESP32EVSEChargingCurrentNumber *number, float value) const {
-  if ((number == this->charging_current_number_ || number == this->default_charging_current_number_) &&
-      !std::isnan(this->maximum_charging_current_limit_)) {
-    // The EVSE only accepts runtime values up to the reported maximum, so cap writes accordingly.
-    if (value > this->maximum_charging_current_limit_)
-      value = this->maximum_charging_current_limit_;
-  }
-  return value;
-}
-
-void ESP32EVSEComponent::write_number_value(ESP32EVSEChargingCurrentNumber *number, float value) {
-  if (number == nullptr)
-    return;
-  const std::string &command = number->get_command();
-  if (command.empty())
-    return;
-  value = this->clamp_charging_current_value(number, value);
-  float scaled_value = value * number->get_multiplier();
-  int32_t to_send = static_cast<int32_t>(std::lroundf(scaled_value));
-  PendingCommand pending;
-  pending.type = PendingCommand::Type::NUMBER_WRITE;
-  // Retain the target entity and scaled integer the firmware expects so the
-  // acknowledgement handler can publish the same reading once the write sticks.
-  pending.number = number;
-  pending.scaled_value = static_cast<float>(to_send);
-  pending.command.assign(command);
-  pending.command.append_char('=');
-  pending.command.append_decimal(to_send);
-  this->queue_pending_command_(pending);
-}
-
-// Convenience wrappers for popular subscription targets.  They are exposed to
-// users through templated buttons in YAML.
-void ESP32EVSEComponent::at_sub(const std::string &command, uint32_t period_ms) {
-  if (!this->is_valid_subscription_argument_(command)) {
-    ESP_LOGW(TAG,
-             "Rejected AT+SUB wrapper request with argument '%s'; only subscription targets are allowed",
-             command.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
-  CommandString cmd;
-  cmd.assign("AT+SUB=");
-  cmd.append(command);
-  cmd.append_char(',');
-  cmd.append_unsigned(period_ms);
-  this->send_command_(cmd);
-}
-
-void ESP32EVSEComponent::at_unsub(const std::string &command) {
-  if (command.empty()) {
-    ESP_LOGD(TAG, "Sending AT+UNSUB with empty command parameter");
-    CommandString cmd;
-    cmd.assign("AT+UNSUB=\"\"");
-    this->send_command_(cmd);
-    return;
-  }
-
-  if (!this->is_valid_subscription_argument_(command)) {
-    ESP_LOGW(TAG,
-             "Rejected AT+UNSUB wrapper request with argument '%s'; only subscription targets are allowed",
-             command.c_str());
-    return;
-  }
-
-  ESP_LOGD(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
-  CommandString cmd;
-  cmd.assign("AT+UNSUB=");
-  cmd.append(command);
-  this->send_command_(cmd);
-}
-
-// Validate that a subscription string only contains characters supported by the
-// EVSE firmware (alphanumeric, plus, underscore, and quotes).
-bool ESP32EVSEComponent::is_valid_subscription_argument_(const std::string &argument) const {
-  if (argument.empty()) {
-    return false;
-  }
-  for (size_t i = 0; i + 2 < argument.size(); ++i) {
-    char c0 = argument[i];
-    char c1 = argument[i + 1];
-    char c2 = argument[i + 2];
-    if ((c0 == 'A' || c0 == 'a') && (c1 == 'T' || c1 == 't') && c2 == '+') {
-      return false;
-    }
-  }
-  return true;
-}
-
-void ESP32EVSEComponent::send_reset_command() { this->send_command_("AT+RST"); }
-
-void ESP32EVSEComponent::send_authorize_command() { this->send_command_("AT+AUTH"); }
-
-void ESP32EVSEComponent::send_start_ap_command() { this->send_command_("AT+WIFIAPCFG=1"); }
-
-bool ESP32EVSEComponent::send_command_(const char *command) {
-  if (command == nullptr || command[0] == '\0')
-    return false;
-  PendingCommand pending;
-  pending.command.assign(command);
-  this->queue_pending_command_(pending);
-  return true;
-}
-
-bool ESP32EVSEComponent::send_command_(const CommandString &command) {
-  if (command.size() == 0)
-    return false;
-  PendingCommand pending;
-  pending.command = command;
-  this->queue_pending_command_(pending);
-  return true;
-}
-
-void ESP32EVSEComponent::queue_pending_command_(const PendingCommand &pending) {
-  ESP_LOGV(TAG, "Queueing command: %s", pending.command.c_str());
-  // Track each command so we only send one request at a time and can associate
-  // the eventual OK/ERROR response with the original metadata.
-  const bool prioritize_interactive = pending.type != PendingCommand::Type::GENERIC;
-
-  bool enqueued = false;
-  if (!prioritize_interactive || this->pending_commands_.empty()) {
-    enqueued = this->pending_commands_.push_back(pending);
-  } else {
-    size_t insert_index = 0;
-    if (this->pending_commands_.front().sent)
-      insert_index = 1;  // Keep the command currently waiting for an ACK at the front.
-
-    for (; insert_index < this->pending_commands_.size(); ++insert_index) {
-      const auto &candidate = this->pending_commands_[insert_index];
-      if (!candidate.sent && candidate.type == PendingCommand::Type::GENERIC)
-        break;
-    }
-    enqueued = this->pending_commands_.insert(insert_index, pending);
-  }
-  if (!enqueued) {
-    ESP_LOGW(TAG, "Pending command queue full, dropping '%s'", pending.command.c_str());
-    return;
-  }
-  this->process_next_command_();
-}
-
-bool ESP32EVSEComponent::is_front_sent_write_(PendingCommand::Type type,
-                                              ESP32EVSEChargingCurrentNumber *number) const {
-  if (this->pending_commands_.empty())
-    return false;
-  const auto &front = this->pending_commands_.front();
-  if (!front.sent)
-    return false;
-  if (front.type != type)
-    return false;
-  if (type == PendingCommand::Type::NUMBER_WRITE && front.number != number)
-    return false;
-  // Only treat the front command as a pending write if we've already pushed it
-  // to the EVSE and the metadata matches the entity currently updating.
-  return true;
-}
-
-// Parse a single line returned by the EVSE and dispatch to the appropriate
-// update handler.  The protocol is a mix of ``+KEY=VALUE`` lines and asynchronous
-// ``OK``/``ERROR`` acknowledgements.
-void ESP32EVSEComponent::process_line_(const std::string &line) {
-  ESP_LOGV(TAG, "Received line: %s", line.c_str());
-  if (line == "OK") {
-    this->handle_ack_(true, false);
-    return;
-  }
-  if (line == "ERROR") {
-    ESP_LOGW(TAG, "ESP32-EVSE error response received");
-    this->handle_ack_(false, false);
-    return;
-  }
-  if (line == "RDY") {
-    ESP_LOGI(TAG, "ESP32-EVSE ready to accept commands");
-    this->ready_trigger_.trigger();
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+STATE")) {
-    int state_value = atoi(value);
-    this->update_state_(state_value);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+ENABLE")) {
-    int enable_value = atoi(value);
-    this->update_enable_(enable_value == 1);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+TEMP")) {
-    int count = 0;
-    int32_t high = 0;
-    int32_t low = 0;
-    if (sscanf(value, "%d,%" PRIi32 ",%" PRIi32, &count, &high, &low) == 3) {
-      this->update_temperature_(count, high, low);
-    }
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+CHCUR")) {
-    int chcur_value = atoi(value);
-    if (chcur_value >= 0)
-      this->update_charging_current_(static_cast<uint16_t>(chcur_value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERPOWER")) {
-    uint32_t power = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_emeter_power_(power);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERSESTIME")) {
-    uint32_t time = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_emeter_session_time_(time);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERCHTIME")) {
-    uint32_t time = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_emeter_charging_time_(time);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+UPTIME")) {
-    uint32_t seconds = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_uptime_(seconds);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+CHIP")) {
-    std::string_view chip_info = trim_view(value);
-    std::string_view chip_name = nth_trimmed_token(chip_info, 0);
-    if (chip_name.empty())
-      chip_name = chip_info;
-
-    std::string formatted(chip_name);
-    std::string_view chip_cores = nth_trimmed_token(chip_info, 1);
-    if (!chip_cores.empty()) {
-      int cores = 0;
-      auto parse_result = std::from_chars(chip_cores.data(), chip_cores.data() + chip_cores.size(), cores);
-      if (parse_result.ec != std::errc())
-        cores = 0;
-      if (cores > 0)
-        formatted += ", " + std::to_string(cores) + (cores == 1 ? " core" : " cores");
-    }
-
-    this->update_chip_(formatted);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+VER")) {
-    this->update_version_(trim_copy(value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+IDFVER")) {
-    this->update_idf_version_(trim_copy(value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+BUILDTIME")) {
-    this->update_build_time_(trim_copy(value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+TIME")) {
-    uint32_t timestamp = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_device_time_(timestamp);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+WIFISTACFG")) {
-    std::string_view wifi_cfg = trim_view(value);
-    std::string_view ssid = nth_trimmed_token(wifi_cfg, 1);
-    if (ssid.empty())
-      ssid = "<hidden>";
-    this->update_wifi_sta_cfg_(std::string(ssid));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+WIFISTAIP")) {
-    this->update_wifi_sta_ip_(trim_copy(value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+WIFISTAMAC")) {
-    this->update_wifi_sta_mac_(trim_copy(value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+DEVNAME")) {
-    this->update_device_name_(trim_copy(value));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+AVAILABLE")) {
-    int available = atoi(value);
-    this->update_available_(available == 1);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+REQAUTH")) {
-    int req = atoi(value);
-    this->update_request_authorization_(req == 1);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERTHREEPHASE")) {
-    int enabled = atoi(value);
-    this->update_emeter_three_phase_(enabled == 1);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+HEAP")) {
-    const char *cursor = value;
-    char *endptr = nullptr;
-    bool has_used = false;
-    bool has_total = false;
-    uint32_t heap_used = 0;
-    uint32_t heap_total = 0;
-
-    unsigned long parsed = strtoul(cursor, &endptr, 10);
-    if (endptr != cursor) {
-      heap_used = static_cast<uint32_t>(parsed);
-      has_used = true;
-      cursor = endptr;
-
-      while (*cursor != '\0' && isspace(static_cast<unsigned char>(*cursor)))
-        ++cursor;
-      if (*cursor == ',') {
-        ++cursor;
-        while (*cursor != '\0' && isspace(static_cast<unsigned char>(*cursor)))
-          ++cursor;
-        parsed = strtoul(cursor, &endptr, 10);
-        if (endptr != cursor) {
-          heap_total = static_cast<uint32_t>(parsed);
-          has_total = true;
-        }
-      }
-    }
-
-    if (has_used || has_total) {
-      this->update_heap_(has_used ? std::optional<uint32_t>(heap_used) : std::nullopt,
-                         has_total ? std::optional<uint32_t>(heap_total) : std::nullopt);
-    } else {
-      ESP_LOGW(TAG, "Unable to parse heap values from '%s'", value);
-    }
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERCONSUM")) {
-    float consum = strtof(value, nullptr);
-    this->update_energy_consumption_(consum);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERTOTCONSUM")) {
-    float consum = parse_last_float(value);
-    if (std::isnan(consum)) {
-      ESP_LOGW(TAG, "Unable to parse total energy consumption from '%s'", value);
-    } else {
-      this->update_total_energy_consumption_(consum);
-    }
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERVOLTAGE")) {
-    float l1 = NAN;
-    float l2 = NAN;
-    float l3 = NAN;
-    if (sscanf(value, "%f,%f,%f", &l1, &l2, &l3) == 3) {
-      // The EVSE reports the three phase voltages in a single response.  That
-      // holds both for polled replies (``AT+EMETERVOLTAGE?``) and for
-      // subscription streams started with ``AT+SUB`` where the controller
-      // pushes updates on its own, so all three entities are published
-      // back-to-back from the same UART line.
-      this->update_voltages_(l1, l2, l3);
-    }
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+EMETERCURRENT")) {
-    float l1 = NAN;
-    float l2 = NAN;
-    float l3 = NAN;
-    if (sscanf(value, "%f,%f,%f", &l1, &l2, &l3) == 3) {
-      // Similarly for the phase currents: whether they arrive as a response to
-      // ``AT+EMETERCURRENT?`` or as part of a subscription stream, the EVSE
-      // delivers the three measurements together, so their publish timestamps
-      // only differ by the bookkeeping time inside this callback.
-      this->update_currents_(l1, l2, l3);
-    }
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+WIFISTACONN")) {
-    int connected = 0;
-    int rssi = std::numeric_limits<int>::min();
-    int parsed = sscanf(value, "%d,%d", &connected, &rssi);
-    if (parsed >= 1) {
-      if (parsed < 2) {
-        rssi = std::numeric_limits<int>::min();
-      }
-      this->update_wifi_status_(connected == 1, rssi);
-    }
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+DEFCHCUR")) {
-    int val = atoi(value);
-    this->update_default_charging_current_(static_cast<uint16_t>(val));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+MAXCHCUR")) {
-    int val = atoi(value);
-    this->update_maximum_charging_current_(static_cast<uint16_t>(val));
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+CONSUMLIM")) {
-    float val = strtof(value, nullptr);
-    this->update_consumption_limit_(val);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+DEFCONSUMLIM")) {
-    float val = strtof(value, nullptr);
-    this->update_default_consumption_limit_(val);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+CHTIMELIM")) {
-    uint32_t val = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_charging_time_limit_(val);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+DEFCHTIMELIM")) {
-    uint32_t val = static_cast<uint32_t>(strtoul(value, nullptr, 10));
-    this->update_default_charging_time_limit_(val);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+UNDERPOWERLIM")) {
-    float val = strtof(value, nullptr);
-    this->update_under_power_limit_(val);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+DEFUNDERPOWERLIM")) {
-    float val = strtof(value, nullptr);
-    this->update_default_under_power_limit_(val);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+LIMREACH")) {
-    int val = atoi(value);
-    this->update_charging_limit_reached_(val == 1);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+ERROR")) {
-    uint32_t mask = static_cast<uint32_t>(strtoul(value, nullptr, 0));
-    this->update_error_flags_(mask);
-    return;
-  }
-  if (const char *value = value_after_prefix(line, "+PENDAUTH")) {
-    int val = atoi(value);
-    this->update_pending_authorization_(val == 1);
-    return;
-  }
-
-  ESP_LOGD(TAG, "Unhandled line: %s", line.c_str());
-}
-
-// Called after receiving an ``OK`` or ``ERROR`` response for the oldest pending
-// command.
-void ESP32EVSEComponent::handle_ack_(bool success, bool timed_out) {
-  if (this->pending_commands_.empty()) {
-    ESP_LOGW(TAG, "Received %s without pending command", success ? "OK" : "ERROR");
-    return;
-  }
-  PendingCommand pending = this->pending_commands_.front();
-  this->pending_commands_.pop_front();
-  ESP_LOGV(TAG, "Command '%s' completed with %s", pending.command.c_str(), success ? "OK" : "ERROR");
-  if (!timed_out && this->timeout_fault_binary_sensor_ != nullptr) {
-    this->timeout_fault_binary_sensor_->publish_state(false);
-  }
-  switch (pending.type) {
-    case PendingCommand::Type::ENABLE_WRITE:
-      if (this->enable_switch_ != nullptr) {
-        if (success) {
-          this->enable_switch_->publish_state(pending.bool_value);
-        } else {
-          this->enable_switch_->publish_state(!pending.bool_value);
-        }
-      }
-      break;
-    case PendingCommand::Type::AVAILABLE_WRITE:
-      if (this->available_switch_ != nullptr) {
-        if (success) {
-          this->available_switch_->publish_state(pending.bool_value);
-        } else {
-          this->request_available_update();
-        }
-      }
-      break;
-    case PendingCommand::Type::REQUEST_AUTHORIZATION_WRITE:
-      if (this->request_authorization_switch_ != nullptr) {
-        if (success) {
-          this->request_authorization_switch_->publish_state(pending.bool_value);
-        } else {
-          this->request_request_authorization_update();
-        }
-      }
-      break;
-    case PendingCommand::Type::EMETER_THREE_PHASE_WRITE:
-      if (this->emeter_three_phase_switch_ != nullptr) {
-        if (success) {
-          this->emeter_three_phase_switch_->publish_state(pending.bool_value);
-        } else {
-          this->request_emeter_three_phase_update();
-        }
-      }
-      break;
-    case PendingCommand::Type::NUMBER_WRITE:
-      if (pending.number != nullptr) {
-        if (success) {
-          this->publish_scaled_number_(pending.number, pending.scaled_value);
-        } else {
-          this->request_number_update_(pending.number);
-        }
-      }
-      break;
-    case PendingCommand::Type::GENERIC:
-      break;
-  }
-  this->process_next_command_();
-}
-
-// Send the next queued command if we are not already waiting for a reply.
-void ESP32EVSEComponent::process_next_command_() {
-  if (this->pending_commands_.empty())
-    return;
-
-  auto &front = this->pending_commands_.front();
-  if (front.sent)
-    return;
-
-  ESP_LOGV(TAG, "Sending command: %s", front.command.c_str());
-  this->write_str(front.command.c_str());
-  this->write_str("\n");
-  front.start_time = millis();
-  front.sent = true;
-}
-
-// Publish EVSE state machine codes (A/B/C/etc.) to the bound text sensor.
-void ESP32EVSEComponent::update_state_(uint8_t state) {
-  this->mark_response_received_(FreshnessSlot::STATE);
-  static const char *const STATE_NAMES[] = {"A", "B1", "B2", "C1", "C2", "D1", "D2", "E", "F"};
-  const char *state_name = "UNKNOWN";
-  if (state < sizeof(STATE_NAMES) / sizeof(STATE_NAMES[0])) {
-    state_name = STATE_NAMES[state];
-  }
-  this->publish_text_sensor_state_(this->state_text_sensor_, state_name);
-}
-
-// Mirror EVSE flags back into ESPHome entities.
-void ESP32EVSEComponent::update_enable_(bool enable) {
-  this->mark_response_received_(FreshnessSlot::ENABLE);
-  // Ignore subscription echoes while a matching command is awaiting an
-  // acknowledgement so we only flip the switch state once.
-  if (this->is_front_sent_write_(PendingCommand::Type::ENABLE_WRITE))
-    return;
-  if (this->enable_switch_ != nullptr) {
-    this->enable_switch_->publish_state(enable);
-  }
-}
-
-// Publish the EVSE's reported temperature extremes.  Values are sent in
-// centi-degrees, so we convert to Celsius before forwarding them.
-void ESP32EVSEComponent::update_temperature_(int count, int32_t high, int32_t low) {
-  this->mark_response_received_(FreshnessSlot::TEMPERATURE);
-  if (this->temperature_high_sensor_ == nullptr && this->temperature_low_sensor_ == nullptr)
-    return;
-  if (count <= 0) {
-    if (this->temperature_high_sensor_ != nullptr)
-      this->temperature_high_sensor_->publish_state(NAN);
-    if (this->temperature_low_sensor_ != nullptr)
-      this->temperature_low_sensor_->publish_state(NAN);
-    return;
-  }
-  float high_c = high / 100.0f;
-  float low_c = low / 100.0f;
-  if (this->temperature_high_sensor_ != nullptr)
-    this->temperature_high_sensor_->publish_state(high_c);
-  if (this->temperature_low_sensor_ != nullptr)
-    this->temperature_low_sensor_->publish_state(low_c);
-}
-
-// Helper: convert the raw integer value reported by the EVSE into the scaled
-// float the number entity expects before publishing it.
-void ESP32EVSEComponent::publish_scaled_number_(ESP32EVSEChargingCurrentNumber *number, float raw_value) {
-  if (number == nullptr)
-    return;
-  if (this->is_front_sent_write_(PendingCommand::Type::NUMBER_WRITE, number))
-    return;
-  // Convert the EVSE's integer back into the human-friendly engineering units
-  // expected by the ESPHome number entity before reporting it.
-  float multiplier = number->get_multiplier();
-  if (multiplier == 0.0f)
-    multiplier = 1.0f;
-  float value = raw_value / multiplier;
-  number->publish_state(value);
-}
-
-// Helper: only publish text sensor updates when the value actually changes to
-// avoid unnecessary state spam for subscribers.
-void ESP32EVSEComponent::publish_text_sensor_state_(text_sensor::TextSensor *sensor,
-                                                    const std::string &state) {
-  if (sensor == nullptr)
-    return;
-  if (sensor->has_state() && sensor->state == state)
-    return;
-  sensor->publish_state(state);
-}
-
-bool ESP32EVSEComponent::has_error_binary_sensors_() const {
-  return this->pilot_fault_binary_sensor_ != nullptr ||
-         this->diode_short_binary_sensor_ != nullptr ||
-         this->lock_fault_binary_sensor_ != nullptr ||
-         this->unlock_fault_binary_sensor_ != nullptr ||
-         this->rcm_triggered_binary_sensor_ != nullptr ||
-         this->rcm_self_test_fault_binary_sensor_ != nullptr ||
-         this->temperature_high_fault_binary_sensor_ != nullptr ||
-         this->temperature_fault_binary_sensor_ != nullptr;
-}
-
-void ESP32EVSEComponent::update_charging_current_(uint16_t value_tenths) {
-  this->mark_response_received_(FreshnessSlot::CHARGING_CURRENT);
-  this->publish_scaled_number_(this->charging_current_number_, value_tenths);
-}
-
-void ESP32EVSEComponent::update_emeter_power_(uint32_t power_w) {
-  this->mark_response_received_(FreshnessSlot::EMETER_POWER);
-  if (this->emeter_power_sensor_ != nullptr) {
-    this->emeter_power_sensor_->publish_state(power_w);
-  }
-}
-
-void ESP32EVSEComponent::update_emeter_session_time_(uint32_t time_s) {
-  this->mark_response_received_(FreshnessSlot::EMETER_SESSION_TIME);
-  if (this->emeter_session_time_sensor_ != nullptr) {
-    this->emeter_session_time_sensor_->publish_state(time_s);
-  }
-}
-
-void ESP32EVSEComponent::update_emeter_charging_time_(uint32_t time_s) {
-  this->mark_response_received_(FreshnessSlot::EMETER_CHARGING_TIME);
-  if (this->emeter_charging_time_sensor_ != nullptr) {
-    this->emeter_charging_time_sensor_->publish_state(time_s);
-  }
-}
-
-void ESP32EVSEComponent::update_uptime_(uint32_t seconds) {
-  this->mark_response_received_(FreshnessSlot::UPTIME);
-  if (this->uptime_sensor_ != nullptr) {
-    this->uptime_sensor_->publish_state(seconds);
-  }
-}
-
-void ESP32EVSEComponent::update_chip_(const std::string &chip) {
-  this->mark_response_received_(FreshnessSlot::CHIP);
-  this->publish_text_sensor_state_(this->chip_text_sensor_, chip);
-}
-
-void ESP32EVSEComponent::update_version_(const std::string &version) {
-  this->mark_response_received_(FreshnessSlot::VERSION);
-  this->publish_text_sensor_state_(this->version_text_sensor_, version);
-}
-
-void ESP32EVSEComponent::update_idf_version_(const std::string &idf_version) {
-  this->mark_response_received_(FreshnessSlot::IDF_VERSION);
-  this->publish_text_sensor_state_(this->idf_version_text_sensor_, idf_version);
-}
-
-void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
-  this->mark_response_received_(FreshnessSlot::BUILD_TIME);
-  if (this->build_time_text_sensor_ == nullptr)
-    return;
-  std::string sanitized = build_time;
-  size_t pos = 0;
-  while ((pos = sanitized.find('"', pos)) != std::string::npos) {
-    sanitized.erase(pos, 1);
-  }
-  this->publish_text_sensor_state_(this->build_time_text_sensor_, sanitized);
-}
-
-void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
-  this->mark_response_received_(FreshnessSlot::DEVICE_TIME);
-  if (this->device_time_text_sensor_ == nullptr)
-    return;
-  time_t raw_time = static_cast<time_t>(timestamp);
-  struct tm tm_info;
-  if (!localtime_r(&raw_time, &tm_info)) {
-    this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
-    return;
-  }
-  char buffer[32];
-  if (strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M", &tm_info) == 0) {
-    this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
-    return;
-  }
-  this->publish_text_sensor_state_(this->device_time_text_sensor_, buffer);
-}
-
-void ESP32EVSEComponent::update_wifi_sta_cfg_(const std::string &ssid) {
-  this->mark_response_received_(FreshnessSlot::WIFI_STA_CFG);
-  this->publish_text_sensor_state_(this->wifi_sta_ssid_text_sensor_, ssid);
-}
-
-void ESP32EVSEComponent::update_wifi_sta_ip_(const std::string &ip) {
-  this->mark_response_received_(FreshnessSlot::WIFI_STA_IP);
-  this->publish_text_sensor_state_(this->wifi_sta_ip_text_sensor_, ip);
-}
-
-void ESP32EVSEComponent::update_wifi_sta_mac_(const std::string &mac) {
-  this->mark_response_received_(FreshnessSlot::WIFI_STA_MAC);
-  this->publish_text_sensor_state_(this->wifi_sta_mac_text_sensor_, mac);
-}
-
-void ESP32EVSEComponent::update_device_name_(const std::string &name) {
-  this->mark_response_received_(FreshnessSlot::DEVICE_NAME);
-  this->publish_text_sensor_state_(this->device_name_text_sensor_, name);
-}
-
-void ESP32EVSEComponent::update_available_(bool available) {
-  this->mark_response_received_(FreshnessSlot::AVAILABLE);
-  // Defer publishing until the queued write completes to prevent flicker from
-  // the immediate subscription update.
-  if (this->is_front_sent_write_(PendingCommand::Type::AVAILABLE_WRITE))
-    return;
-  if (this->available_switch_ != nullptr) {
-    this->available_switch_->publish_state(available);
-  }
-}
-
-void ESP32EVSEComponent::update_request_authorization_(bool request) {
-  this->mark_response_received_(FreshnessSlot::REQUEST_AUTHORIZATION);
-  // Hold back the remote state until the command queue confirms the user's
-  // desired value.
-  if (this->is_front_sent_write_(PendingCommand::Type::REQUEST_AUTHORIZATION_WRITE))
-    return;
-  if (this->request_authorization_switch_ != nullptr) {
-    this->request_authorization_switch_->publish_state(request);
-  }
-}
-
-void ESP32EVSEComponent::update_emeter_three_phase_(bool enabled) {
-  this->mark_response_received_(FreshnessSlot::EMETER_THREE_PHASE);
-  if (this->is_front_sent_write_(PendingCommand::Type::EMETER_THREE_PHASE_WRITE))
-    return;
-  if (this->emeter_three_phase_switch_ != nullptr) {
-    this->emeter_three_phase_switch_->publish_state(enabled);
-  }
-}
-
-void ESP32EVSEComponent::update_heap_(std::optional<uint32_t> heap_used_bytes,
-                                      std::optional<uint32_t> heap_total_bytes) {
-  this->mark_response_received_(FreshnessSlot::HEAP);
-  if (heap_used_bytes.has_value() && this->heap_used_sensor_ != nullptr) {
-    this->heap_used_sensor_->publish_state(*heap_used_bytes);
-  }
-  if (heap_total_bytes.has_value() && this->heap_total_sensor_ != nullptr) {
-    this->heap_total_sensor_->publish_state(*heap_total_bytes);
-  }
-}
-
-void ESP32EVSEComponent::update_energy_consumption_(float value) {
-  this->mark_response_received_(FreshnessSlot::ENERGY_CONSUMPTION);
-  if (this->energy_consumption_sensor_ != nullptr) {
-    this->energy_consumption_sensor_->publish_state(value);
-  }
-}
-
-void ESP32EVSEComponent::update_total_energy_consumption_(float value) {
-  this->mark_response_received_(FreshnessSlot::TOTAL_ENERGY_CONSUMPTION);
-  if (this->total_energy_consumption_sensor_ != nullptr) {
-    this->total_energy_consumption_sensor_->publish_state(value);
-  }
-}
-
-void ESP32EVSEComponent::update_voltages_(float l1, float l2, float l3) {
-  this->mark_response_received_(FreshnessSlot::VOLTAGE);
-  if (!std::isnan(l1))
-    l1 /= 1000.0f;
-  if (!std::isnan(l2))
-    l2 /= 1000.0f;
-  if (!std::isnan(l3))
-    l3 /= 1000.0f;
-  if (this->voltage_l1_sensor_ != nullptr)
-    this->voltage_l1_sensor_->publish_state(l1);
-  if (this->voltage_l2_sensor_ != nullptr)
-    this->voltage_l2_sensor_->publish_state(l2);
-  if (this->voltage_l3_sensor_ != nullptr)
-    this->voltage_l3_sensor_->publish_state(l3);
-}
-
-void ESP32EVSEComponent::update_currents_(float l1, float l2, float l3) {
-  this->mark_response_received_(FreshnessSlot::CURRENT);
-  if (!std::isnan(l1))
-    l1 /= 1000.0f;
-  if (!std::isnan(l2))
-    l2 /= 1000.0f;
-  if (!std::isnan(l3))
-    l3 /= 1000.0f;
-  if (this->current_l1_sensor_ != nullptr)
-    this->current_l1_sensor_->publish_state(l1);
-  if (this->current_l2_sensor_ != nullptr)
-    this->current_l2_sensor_->publish_state(l2);
-  if (this->current_l3_sensor_ != nullptr)
-    this->current_l3_sensor_->publish_state(l3);
-}
-
-void ESP32EVSEComponent::update_wifi_status_(bool connected, int rssi) {
-  this->mark_response_received_(FreshnessSlot::WIFI_STATUS);
-  if (this->wifi_connected_binary_sensor_ != nullptr) {
-    this->wifi_connected_binary_sensor_->publish_state(connected);
-  }
-  if (this->wifi_rssi_sensor_ != nullptr) {
-    if (connected && rssi != std::numeric_limits<int>::min()) {
-      this->wifi_rssi_sensor_->publish_state(rssi);
-    } else {
-      this->wifi_rssi_sensor_->publish_state(NAN);
-    }
-  }
-}
-
-// Forward various numeric reports from the EVSE to their corresponding number
-// entities.  Values are scaled so ESPHome users interact with human readable
-// units instead of protocol specific integers.
-void ESP32EVSEComponent::update_default_charging_current_(uint16_t value_tenths) {
-  this->mark_response_received_(FreshnessSlot::DEFAULT_CHARGING_CURRENT);
-  this->publish_scaled_number_(this->default_charging_current_number_, value_tenths);
-}
-
-void ESP32EVSEComponent::update_maximum_charging_current_(uint16_t value_amps) {
-  this->mark_response_received_(FreshnessSlot::MAXIMUM_CHARGING_CURRENT);
-  float limit = static_cast<float>(value_amps);
-  if (this->maximum_charging_current_number_ != nullptr) {
-    float multiplier = this->maximum_charging_current_number_->get_multiplier();
-    if (multiplier == 0.0f)
-      multiplier = 1.0f;
-    limit = value_amps / multiplier;
-  }
-  this->maximum_charging_current_limit_ = limit;
-  this->publish_scaled_number_(this->maximum_charging_current_number_, value_amps);
-}
-
-void ESP32EVSEComponent::update_consumption_limit_(float value) {
-  this->mark_response_received_(FreshnessSlot::CONSUMPTION_LIMIT);
-  this->publish_scaled_number_(this->consumption_limit_number_, value);
-}
-
-void ESP32EVSEComponent::update_default_consumption_limit_(float value) {
-  this->mark_response_received_(FreshnessSlot::DEFAULT_CONSUMPTION_LIMIT);
-  this->publish_scaled_number_(this->default_consumption_limit_number_, value);
-}
-
-void ESP32EVSEComponent::update_charging_time_limit_(uint32_t value) {
-  this->mark_response_received_(FreshnessSlot::CHARGING_TIME_LIMIT);
-  this->publish_scaled_number_(this->charging_time_limit_number_, static_cast<float>(value));
-}
-
-void ESP32EVSEComponent::update_default_charging_time_limit_(uint32_t value) {
-  this->mark_response_received_(FreshnessSlot::DEFAULT_CHARGING_TIME_LIMIT);
-  this->publish_scaled_number_(this->default_charging_time_limit_number_, static_cast<float>(value));
-}
-
-void ESP32EVSEComponent::update_under_power_limit_(float value) {
-  this->mark_response_received_(FreshnessSlot::UNDER_POWER_LIMIT);
-  this->publish_scaled_number_(this->under_power_limit_number_, value);
-}
-
-void ESP32EVSEComponent::update_default_under_power_limit_(float value) {
-  this->mark_response_received_(FreshnessSlot::DEFAULT_UNDER_POWER_LIMIT);
-  this->publish_scaled_number_(this->default_under_power_limit_number_, value);
-}
-
-void ESP32EVSEComponent::update_pending_authorization_(bool pending) {
-  this->mark_response_received_(FreshnessSlot::PENDING_AUTHORIZATION);
-  if (this->pending_authorization_binary_sensor_ != nullptr) {
-    this->pending_authorization_binary_sensor_->publish_state(pending);
-  }
-}
-
-void ESP32EVSEComponent::update_charging_limit_reached_(bool reached) {
-  this->mark_response_received_(FreshnessSlot::CHARGING_LIMIT_REACHED);
-  if (this->charging_limit_reached_binary_sensor_ != nullptr) {
-    this->charging_limit_reached_binary_sensor_->publish_state(reached);
-  }
-}
-
-void ESP32EVSEComponent::update_error_flags_(uint32_t mask) {
-  this->mark_response_received_(FreshnessSlot::ERROR_FLAGS);
-  if (this->pilot_fault_binary_sensor_ != nullptr)
-    this->pilot_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_PILOT_FAULT) != 0u);
-  if (this->diode_short_binary_sensor_ != nullptr)
-    this->diode_short_binary_sensor_->publish_state((mask & ERROR_FLAG_DIODE_SHORT) != 0u);
-  if (this->lock_fault_binary_sensor_ != nullptr)
-    this->lock_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_LOCK_FAULT) != 0u);
-  if (this->unlock_fault_binary_sensor_ != nullptr)
-    this->unlock_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_UNLOCK_FAULT) != 0u);
-  if (this->rcm_triggered_binary_sensor_ != nullptr)
-    this->rcm_triggered_binary_sensor_->publish_state((mask & ERROR_FLAG_RCM_TRIGGERED) != 0u);
-  if (this->rcm_self_test_fault_binary_sensor_ != nullptr)
-    this->rcm_self_test_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_RCM_SELF_TEST_FAULT) != 0u);
-  if (this->temperature_high_fault_binary_sensor_ != nullptr)
-    this->temperature_high_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_TEMPERATURE_HIGH) != 0u);
-  if (this->temperature_fault_binary_sensor_ != nullptr)
-    this->temperature_fault_binary_sensor_->publish_state((mask & ERROR_FLAG_TEMPERATURE_FAULT) != 0u);
-}
-
-// When a write command fails we re-request the value so the UI reflects the
-// actual charger state.
-void ESP32EVSEComponent::request_number_update_(ESP32EVSEChargingCurrentNumber *number) {
-  if (number == nullptr)
-    return;
-  if (number == this->charging_current_number_) {
-    this->request_charging_current_update();
-  } else if (number == this->default_charging_current_number_) {
-    this->request_default_charging_current_update();
-  } else if (number == this->maximum_charging_current_number_) {
-    this->request_maximum_charging_current_update();
-  } else if (number == this->consumption_limit_number_) {
-    this->request_consumption_limit_update();
-  } else if (number == this->default_consumption_limit_number_) {
-    this->request_default_consumption_limit_update();
-  } else if (number == this->charging_time_limit_number_) {
-    this->request_charging_time_limit_update();
-  } else if (number == this->default_charging_time_limit_number_) {
-    this->request_default_charging_time_limit_update();
-  } else if (number == this->under_power_limit_number_) {
-    this->request_under_power_limit_update();
-  } else if (number == this->default_under_power_limit_number_) {
-    this->request_default_under_power_limit_update();
-  }
-}
-
-void ESP32EVSEEnableSwitch::write_state(bool state) {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->write_enable_state(state);
-}
-
-// Switch implementations defer publishing their new state until the EVSE
-// acknowledges the change via the component callbacks.
-void ESP32EVSEAvailableSwitch::write_state(bool state) {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->write_available_state(state);
-}
-
-void ESP32EVSERequestAuthorizationSwitch::write_state(bool state) {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->write_request_authorization_state(state);
-}
-
-void ESP32EVSEEmeterThreePhaseSwitch::write_state(bool state) {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->write_emeter_three_phase_state(state);
-}
-
-ESP32EVSEChargingCurrentNumber::ESP32EVSEChargingCurrentNumber() {
-  this->traits.set_min_value(6.0f);
-  this->traits.set_max_value(63.0f);
-  this->traits.set_step(0.1f);
-}
-
-void ESP32EVSEChargingCurrentNumber::control(float value) {
-  if (this->parent_ == nullptr)
-    return;
-  float limited = this->parent_->clamp_charging_current_value(this, value);
-  this->parent_->write_number_value(this, limited);
-}
-
-// Buttons translate presses into EVSE commands with no additional state.
-void ESP32EVSEResetButton::press_action() {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->send_reset_command();
-}
-
-void ESP32EVSEAuthorizeButton::press_action() {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->send_authorize_command();
-}
-
-void ESP32EVSEStartAccessPointButton::press_action() {
-  if (this->parent_ == nullptr)
-    return;
-  this->parent_->send_start_ap_command();
-}
-
-}  // namespace esp32evse
-}  // namespace esphome
+    ),
+)
+
+
+def _register_subscription_action(name: str, command: str) -> None:
+    """Expose an ``esp32evse.<entity>.subscribe`` automation action."""
+
+    @automation.register_action(
+        f"esp32evse.{name}.subscribe",
+        ESP32EVSEManagedSubscriptionAction,
+        _SUBSCRIPTION_SCHEMA,
+        synchronous=True,
+    )
+    async def subscription_action_to_code(config, action_id, template_arg, args, *, _command=command):
+        component_id = _resolve_parent_id(config)
+        var = cg.new_Pvariable(action_id, template_arg)
+        await cg.register_parented(var, component_id)
+        cg.add(var.set_command(_command))
+        period_config = config[CONF_PERIOD]
+        if isinstance(period_config, str):
+            period_config = 0
+        elif isinstance(period_config, cv.TimePeriod):
+            if getattr(period_config, "is_never", False):
+                period_config = 0
+            else:
+                period_config = period_config.total_milliseconds
+        period = await cg.templatable(period_config, args, cg.uint32)
+        cg.add(var.set_period(period))
+        return var
+
+
+for _name, _command in _SUBSCRIPTION_TARGETS.items():
+    _register_subscription_action(_name, _command)
+
+
+@automation.register_action(
+    "esp32evse.unsubscribe_all",
+    ESP32EVSEUnsubscribeAllAction,
+    _validate_unsubscribe_all_config,
+    synchronous=True,
+)
+async def unsubscribe_all_to_code(config, action_id, template_arg, args):
+    component_id = _resolve_parent_id(config)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, component_id)
+    return var
+
+
+@automation.register_action(
+    "esp32evse.force_update",
+    ESP32EVSEForceUpdateAction,
+    _parent_reference_config,
+    synchronous=True,
+)
+async def force_update_to_code(config, action_id, template_arg, args):
+    component_id = _resolve_parent_id(config)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, component_id)
+    return var
