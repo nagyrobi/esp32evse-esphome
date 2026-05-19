@@ -146,7 +146,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("60000ms")),
+    .extend(cv.polling_component_schema("60s")),
     _register_component_config,
     _clamp_update_interval,
 )
