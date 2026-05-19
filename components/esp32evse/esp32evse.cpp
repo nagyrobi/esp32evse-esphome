@@ -820,7 +820,8 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   }
   if (const char *value = value_after_prefix(line, "+STATE")) {
     int state_value = atoi(value);
-    this->update_state_(state_value);
+    if (state_value >= 0)
+      this->update_state_(static_cast<uint8_t>(state_value));
     return;
   }
   if (const char *value = value_after_prefix(line, "+ENABLE")) {
@@ -972,8 +973,13 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+EMETERCONSUM")) {
-    float consum = strtof(value, nullptr);
-    this->update_energy_consumption_(consum);
+    char *endptr = nullptr;
+    float consum = strtof(value, &endptr);
+    if (endptr == value) {
+      ESP_LOGW(TAG, "Unable to parse energy consumption from '%s'", value);
+    } else {
+      this->update_energy_consumption_(consum);
+    }
     return;
   }
   if (const char *value = value_after_prefix(line, "+EMETERTOTCONSUM")) {
