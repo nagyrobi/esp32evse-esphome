@@ -15,7 +15,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_HOUR,
     UNIT_KILOWATT,
-    UNIT_KILOWATT_HOUR,
+    UNIT_KILOWATT_HOURS,
 )
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent, esp32evse_ns
@@ -128,7 +128,7 @@ _NUMBER_TYPES = {
     ),
     CONF_CONSUMPTION_LIMIT: _make_number_type(
         icon="mdi:gauge",
-        unit=UNIT_KILOWATT_HOUR,
+        unit=UNIT_KILOWATT_HOURS,
         default_min=0.0,
         default_max=100.0,
         default_step=0.1,
@@ -139,7 +139,7 @@ _NUMBER_TYPES = {
     ),
     CONF_DEFAULT_CONSUMPTION_LIMIT: _make_number_type(
         icon="mdi:gauge",
-        unit=UNIT_KILOWATT_HOUR,
+        unit=UNIT_KILOWATT_HOURS,
         default_min=0.0,
         default_max=100.0,
         default_step=0.1,
