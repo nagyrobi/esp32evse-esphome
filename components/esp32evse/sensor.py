@@ -25,12 +25,9 @@ from esphome.const import (
     UNIT_DECIBEL_MILLIWATT,
     UNIT_SECOND,
     UNIT_VOLT,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
-
-try:
-    from esphome.const import UNIT_WATT_HOUR
-except ImportError:
-    from esphome.const import UNIT_WATT_HOURS as UNIT_WATT_HOUR
 
 from . import CONF_ESP32EVSE_ID, ESP32EVSEComponent
 
@@ -89,7 +86,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_EMETER_POWER): sensor.sensor_schema(
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement="W",
+                unit_of_measurement=UNIT_WATT,
                 icon=ICON_FLASH,
             ),
             cv.Optional(CONF_EMETER_SESSION_TIME): sensor.sensor_schema(
@@ -124,13 +121,13 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ENERGY_CONSUMPTION): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOUR,
+                unit_of_measurement=UNIT_WATT_HOURS,
                 icon="mdi:counter",
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TOTAL_ENERGY_CONSUMPTION): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOUR,
+                unit_of_measurement=UNIT_WATT_HOURS,
                 icon="mdi:counter",
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL,
