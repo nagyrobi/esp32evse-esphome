@@ -3,7 +3,7 @@
 This repository provides an [ESPHome](https://esphome.io/) custom component that exposes the most important control features of the [ESP32-EVSE](https://github.com/dzurikmiroslav/esp32-evse) charging controller. 
 It's mainly intended to be used in a custom [HMI screen based on ESPHome and LVGL](https://github.com/nagyrobi/esp32-evse_esphome-lvgl).
 
-It was developed and tested with board [ESP32-S2 EVSE DIY ALPHA](https://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32%E2%80%90S2-EVSE-DIY-ALPHA) (aka. [esp32s2-evse-d-a](https://oshwlab.com/dzurik.miroslav/esp32s2-diy-evse)) in [fixed cable configuration](https://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32%E2%80%90S2-EVSE-DIY-ALPHA#with-fixed-cable). The communication implements the [AT Commands](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands).
+It was developed and tested with board [ESP32-S2 EVSE DIY ALPHA](https://dzurikmiroslav.github.io/esp32-evse-docs/10-hardware/esp32s2-evse-d-a/) in [fixed cable configuration](https://dzurikmiroslav.github.io/esp32-evse-docs/10-hardware/esp32s2-evse-d-a/#with-fixed-cable). The communication implements the [AT Commands](https://dzurikmiroslav.github.io/esp32-evse-docs/20-software/AT-Commands/).
 
 Why would you complement ESP32-EVSE with another ESP32 running ESPHome? You can extend its functionality independently, increasing flexibility:
 - make HMI/graphical UI rendered via LVGL, on an ESP32-based screen, with fully open source resources (no proprietary editor needed)
@@ -22,7 +22,7 @@ Use an ESP32-based board supported by ESPHome. The component communicates with E
 
 Enter your ESP32-EVSE web UI and in _Settings_ > _Serial_, select for the UART port _Mode_: _AT Commands_. _Baud rate_: _115200_,  _Data bits_: _8_,  _Stop bits_: _1_, _Parity_: _Disable_. Press Submit.
 
-With the [esp32s2-evse-d-a board](hhttps://github.com/dzurikmiroslav/esp32-evse/wiki/ESP32%E2%80%90S2-EVSE-DIY-ALPHA) you can use a 4-pin cable with 2.5mm JST wired correctly for RX/TX/GND/5V:
+With the [esp32s2-evse-d-a board](https://dzurikmiroslav.github.io/esp32-evse-docs/10-hardware/esp32s2-evse-d-a/) you can use a 4-pin cable with 2.5mm JST wired correctly for RX/TX/GND/5V:
 
 | ESP32-EVSE S2 DA U6 UART (2.5mm JST) |
 | -------- |
@@ -231,7 +231,7 @@ ESP32-EVSE is able to periodically push values without waiting for query command
 
 The component exposes dedicated automation actions that wrap the `AT+SUB`
 and `AT+UNSUB` commands. Check out the
-[AT Commands documentation](https://github.com/dzurikmiroslav/esp32-evse/wiki/AT-commands)
+[AT Commands documentation](https://dzurikmiroslav.github.io/esp32-evse-docs/20-software/AT-Commands/)
 for details.
 
 **Example:** To subscribe the ``emeter_power`` sensor to push updates every second (use any
