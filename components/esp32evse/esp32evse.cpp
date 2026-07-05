@@ -222,7 +222,6 @@ void ESP32EVSEComponent::setup() {
     this->request_pending_authorization_update();
     if (this->has_error_binary_sensors_())
       this->request_error_flags_update();
-
     if (this->temperature_high_sensor_ != nullptr || this->temperature_low_sensor_ != nullptr)
       this->request_temperature_update();
     if (this->charging_current_number_ != nullptr)
@@ -245,6 +244,8 @@ void ESP32EVSEComponent::setup() {
       this->request_build_time_update();
     if (this->device_time_text_sensor_ != nullptr)
       this->request_device_time_update();
+    if (this->device_time_text_sensor_ != nullptr)
+      this->request_timezone_rule_update();
     if (this->wifi_sta_ssid_text_sensor_ != nullptr)
       this->request_wifi_sta_cfg_update();
     if (this->wifi_sta_ip_text_sensor_ != nullptr)
@@ -542,6 +543,7 @@ void ESP32EVSEComponent::request_version_update() { this->send_command_("AT+VER?
 void ESP32EVSEComponent::request_idf_version_update() { this->send_command_("AT+IDFVER?"); }
 void ESP32EVSEComponent::request_build_time_update() { this->send_command_("AT+BUILDTIME?"); }
 void ESP32EVSEComponent::request_device_time_update() { this->send_command_("AT+TIME?"); }
+void ESP32EVSEComponent::request_timezone_rule_update() { this->send_command_("AT+TZRULE?"); }
 void ESP32EVSEComponent::request_wifi_sta_cfg_update() { this->send_command_("AT+WIFISTACFG?"); }
 void ESP32EVSEComponent::request_wifi_sta_ip_update() { this->send_command_("AT+WIFISTAIP?"); }
 void ESP32EVSEComponent::request_wifi_sta_mac_update() { this->send_command_("AT+WIFISTAMAC?"); }
@@ -817,6 +819,8 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   if (line == "RDY") {
     ESP_LOGI(TAG, "ESP32-EVSE ready to accept commands");
     this->ready_trigger_.trigger();
+    if (this->device_time_text_sensor_ != nullptr)
+      this->request_timezone_rule_update();
     return;
   }
   if (const char *value = value_after_prefix(line, "+STATE")) {
@@ -901,6 +905,10 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   if (const char *value = value_after_prefix(line, "+TIME")) {
     uint32_t timestamp = static_cast<uint32_t>(strtoul(value, nullptr, 10));
     this->update_device_time_(timestamp);
+    return;
+  }
+  if (const char *value = value_after_prefix(line, "+TZRULE")) {
+    this->update_timezone_rule_(trim_copy(value));
     return;
   }
   if (const char *value = value_after_prefix(line, "+WIFISTACFG")) {
@@ -1316,13 +1324,43 @@ void ESP32EVSEComponent::update_build_time_(const std::string &build_time) {
   this->publish_text_sensor_state_(this->build_time_text_sensor_, sanitized);
 }
 
+void ESP32EVSEComponent::update_timezone_rule_(const std::string &timezone_rule) {
+  if (timezone_rule.empty() || timezone_rule == this->timezone_rule_)
+    return;
+  this->timezone_rule_ = timezone_rule;
+  ESP_LOGD(TAG, "ESP32-EVSE timezone rule: %s", timezone_rule.c_str());
+  // Re-render device_time immediately with the new rule applied.
+  if (this->device_time_text_sensor_ != nullptr)
+    this->request_device_time_update();
+}
+
 void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
   this->mark_response_received_(FreshnessSlot::DEVICE_TIME);
   if (this->device_time_text_sensor_ == nullptr)
     return;
   time_t raw_time = static_cast<time_t>(timestamp);
   struct tm tm_info;
-  if (!localtime_r(&raw_time, &tm_info)) {
+  bool ok;
+  if (!this->timezone_rule_.empty()) {
+    // +TIME is a UTC epoch. Apply the EVSE's POSIX timezone rule (from
+    // AT+TZRULE) only while rendering, then restore this node's own TZ so we
+    // don't disturb its clock or other components.
+    const char *previous_tz = getenv("TZ");
+    bool had_tz = previous_tz != nullptr;
+    std::string previous_tz_copy = had_tz ? std::string(previous_tz) : std::string();
+    setenv("TZ", this->timezone_rule_.c_str(), 1);
+    tzset();
+    ok = localtime_r(&raw_time, &tm_info) != nullptr;
+    if (had_tz)
+      setenv("TZ", previous_tz_copy.c_str(), 1);
+    else
+      unsetenv("TZ");
+    tzset();
+  } else {
+    // No rule captured yet: fall back to this node's local time.
+    ok = localtime_r(&raw_time, &tm_info) != nullptr;
+  }
+  if (!ok) {
     this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
     return;
   }

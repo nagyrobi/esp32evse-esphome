@@ -223,6 +223,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void request_idf_version_update();
   void request_build_time_update();
   void request_device_time_update();
+  void request_timezone_rule_update();
   void request_wifi_sta_cfg_update();
   void request_wifi_sta_ip_update();
   void request_wifi_sta_mac_update();
@@ -386,6 +387,7 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   void update_idf_version_(const std::string &idf_version);
   void update_build_time_(const std::string &build_time);
   void update_device_time_(uint32_t timestamp);
+  void update_timezone_rule_(const std::string &timezone_rule);
   void update_wifi_sta_cfg_(const std::string &ssid);
   void update_wifi_sta_ip_(const std::string &ip);
   void update_wifi_sta_mac_(const std::string &mac);
@@ -510,6 +512,11 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSETemperatureHighFaultBinarySensor *temperature_high_fault_binary_sensor_{nullptr};
   ESP32EVSETemperatureFaultBinarySensor *temperature_fault_binary_sensor_{nullptr};
   ESP32EVSETimeoutFaultBinarySensor *timeout_fault_binary_sensor_{nullptr};
+
+  // POSIX timezone rule captured once from AT+TZRULE (e.g.
+  // "CET-1CEST,M3.5.0,M10.5.0/3"), applied when rendering device_time so it
+  // shows the EVSE's local time. Empty until the first +TZRULE response.
+  std::string timezone_rule_;
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
