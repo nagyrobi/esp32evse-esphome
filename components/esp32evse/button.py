@@ -67,7 +67,7 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_ESP32EVSE_ID])
 
     if reset_config := config.get(CONF_RESET):
-        # The reset button sends the ``AT+RESET`` command via UART when pressed.
+        # The reset button sends the ``AT+RST`` command via UART when pressed.
         btn = await button.new_button(reset_config)
         await cg.register_parented(btn, config[CONF_ESP32EVSE_ID])
         cg.add(parent.set_reset_button(btn))

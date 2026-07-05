@@ -5,6 +5,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 #include <algorithm>
 #include <charconv>
@@ -320,7 +321,7 @@ void ESP32EVSEComponent::loop() {
     }
   }
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   while (!this->pending_commands_.empty()) {
     auto &front = this->pending_commands_.front();
     if (!front.sent) {
@@ -345,7 +346,7 @@ void ESP32EVSEComponent::mark_response_received_(FreshnessSlot slot) {
   size_t index = static_cast<size_t>(slot);
   if (index >= this->last_response_millis_.size())
     return;
-  this->last_response_millis_[index] = millis();
+  this->last_response_millis_[index] = App.get_loop_component_start_time();
 }
 
 // Return ``true`` when the most recent response in ``slot`` is still within the
@@ -369,7 +370,7 @@ bool ESP32EVSEComponent::should_skip_poll_(FreshnessSlot slot) const {
   uint32_t freshness_window = interval / 2;
   if (freshness_window == 0)
     freshness_window = 1;
-  uint32_t now_ms = millis();
+  uint32_t now_ms = App.get_loop_component_start_time();
   uint32_t elapsed = now_ms - last;
   return elapsed < freshness_window;
 }
@@ -506,7 +507,7 @@ void ESP32EVSEComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Stop Bits: %u", uart_parent->get_stop_bits());
     size_t rx_buffer_size = uart_parent->get_rx_buffer_size();
     if (rx_buffer_size != 0) {
-      ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", rx_buffer_size);
+      ESP_LOGCONFIG(TAG, "  RX Buffer Size: %zu", rx_buffer_size);
     }
   } else {
     ESP_LOGW(TAG, "  No UART parent configured");
@@ -1079,7 +1080,7 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
     return;
   }
   if (const char *value = value_after_prefix(line, "+ERROR")) {
-    uint32_t mask = static_cast<uint32_t>(strtoul(value, nullptr, 0));
+    uint32_t mask = static_cast<uint32_t>(strtoul(value, nullptr, 10));
     this->update_error_flags_(mask);
     return;
   }
@@ -1169,7 +1170,7 @@ void ESP32EVSEComponent::process_next_command_() {
   ESP_LOGV(TAG, "Sending command: %s", front.command.c_str());
   this->write_str(front.command.c_str());
   this->write_str("\n");
-  front.start_time = millis();
+  front.start_time = App.get_loop_component_start_time();
   front.sent = true;
 }
 

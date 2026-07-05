@@ -17,6 +17,7 @@ import esphome.config_validation as cv
 # the UART helpers to bind the C++ object to ESPHome's UART subsystem.
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
+from esphome.core import CORE
 
 # Make sure UART gets compiled alongside our component because we depend on it
 # both at configuration time and at runtime on the microcontroller.
@@ -57,7 +58,18 @@ MAX_UPDATE_INTERVAL_MS = 600_000
 
 CONF_PERIOD = "period"
 
-_REGISTERED_COMPONENT_IDS = []
+# Track declared component IDs per-compilation so the action schemas can default
+# to the sole component when the user omits ``esp32evse_id``.  This lives on
+# ``CORE.data`` (reset before every run) instead of a module-level list: a plain
+# module global is never cleared between configs in a long-lived process such as
+# the dashboard, so IDs from previously-validated configs would accumulate and
+# make a single-component setup wrongly fail with "must be specified when
+# multiple ... are configured".
+_COMPONENT_IDS_KEY = "esp32evse_component_ids"
+
+
+def _registered_component_ids():
+    return CORE.data.setdefault(_COMPONENT_IDS_KEY, [])
 
 
 def _normalize_subscription_period(value):
@@ -93,8 +105,9 @@ def _resolve_parent_id(config):
     component_id = config.get(CONF_ESP32EVSE_ID)
     if component_id is not None:
         return component_id
-    if len(_REGISTERED_COMPONENT_IDS) == 1:
-        return _REGISTERED_COMPONENT_IDS[0]
+    registered_ids = _registered_component_ids()
+    if len(registered_ids) == 1:
+        return registered_ids[0]
     raise cv.Invalid(
         "esp32evse_id must be specified when multiple ESP32 EVSE components are configured"
     )
@@ -129,8 +142,9 @@ def _clamp_update_interval(config):
 
 def _register_component_config(config):
     component_id = config[CONF_ID]
-    if component_id not in _REGISTERED_COMPONENT_IDS:
-        _REGISTERED_COMPONENT_IDS.append(component_id)
+    registered_ids = _registered_component_ids()
+    if component_id not in registered_ids:
+        registered_ids.append(component_id)
     return config
 
 
@@ -174,8 +188,9 @@ async def to_code(config):
     # Finally, bind the component to the configured UART bus so serial
     # communication with the EVSE controller is possible.
     await uart.register_uart_device(var, config)
-    if config[CONF_ID] not in _REGISTERED_COMPONENT_IDS:
-        _REGISTERED_COMPONENT_IDS.append(config[CONF_ID])
+    registered_ids = _registered_component_ids()
+    if config[CONF_ID] not in registered_ids:
+        registered_ids.append(config[CONF_ID])
 
     if CONF_ON_READY in config:
         await automation.build_automation(var.get_ready_trigger(), [], config[CONF_ON_READY])

@@ -16,7 +16,7 @@ Why would you complement ESP32-EVSE with another ESP32 running ESPHome? You can 
 
 ## Requirements
 
-You need at least ESPHome 2026.3.0.
+You need at least ESPHome 2026.5.0.
 
 Use an ESP32-based board supported by ESPHome. The component communicates with ESP32-EVSE (min. version 2.0.1) via UART at 115200 baud rate. Check out the [HMI screen based on ESPHome and LVGL](https://github.com/nagyrobi/esp32-evse_esphome-lvgl) repository for example display hardware configurations.
 
