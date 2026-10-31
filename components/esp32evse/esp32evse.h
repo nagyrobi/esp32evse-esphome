@@ -15,6 +15,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include "posix_tz.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -355,12 +357,18 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
       REQUEST_AUTHORIZATION_WRITE,
       EMETER_THREE_PHASE_WRITE,
       NUMBER_WRITE,
+      // AT+SUB / AT+UNSUB: queued ahead of polling queries like the writes,
+      // but never merged with each other because their order matters.
+      SUBSCRIPTION,
     };
 
     Type type{Type::GENERIC};
     CommandString command;
     uint32_t start_time{0};
     bool sent{false};
+    // Set when the EVSE announced RDY while this command was in flight: it was
+    // most likely lost in the reboot, so it only gets a short grace period.
+    bool sent_before_ready{false};
     // Switch writes store the requested state so callbacks can publish it once
     // the EVSE acknowledges the change.
     bool bool_value{false};
@@ -433,15 +441,17 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
     const PendingCommand &front() const { return this->commands_[0]; }
     PendingCommand &operator[](size_t index) { return this->commands_[index]; }
     const PendingCommand &operator[](size_t index) const { return this->commands_[index]; }
+    bool full() const { return this->size_ >= MAX_PENDING_COMMANDS; }
     bool push_back(const PendingCommand &command);
     bool insert(size_t index, const PendingCommand &command);
-    void pop_front();
+    void erase(size_t index);
+    void pop_front() { this->erase(0); }
 
    private:
     // ``setup()`` and ``perform_update_`` enqueue more than thirty back-to-back
-    // requests before the UART loop processes acknowledgements.  Reserve enough
-    // static slots to hold that burst plus headroom for user actions so we keep
-    // everything queued instead of dropping commands.
+    // requests before the UART loop processes acknowledgements.  Identical
+    // queries are merged while queued, so this bounds the polling burst; the
+    // rest is headroom for writes and subscription changes.
     static constexpr size_t MAX_PENDING_COMMANDS = 48;
     std::array<PendingCommand, MAX_PENDING_COMMANDS> commands_{};
     size_t size_{0};
@@ -513,10 +523,13 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSETemperatureFaultBinarySensor *temperature_fault_binary_sensor_{nullptr};
   ESP32EVSETimeoutFaultBinarySensor *timeout_fault_binary_sensor_{nullptr};
 
-  // POSIX timezone rule captured once from AT+TZRULE (e.g.
-  // "CET-1CEST,M3.5.0,M10.5.0/3"), applied when rendering device_time so it
-  // shows the EVSE's local time. Empty until the first +TZRULE response.
+  // POSIX timezone rule captured from AT+TZRULE (e.g.
+  // "CET-1CEST,M3.5.0,M10.5.0/3"), parsed once and applied when rendering
+  // device_time so it shows the EVSE's local time. Empty until the first
+  // +TZRULE response; timezone_valid_ stays false if the rule can't be parsed.
   std::string timezone_rule_;
+  PosixTz timezone_{};
+  bool timezone_valid_{false};
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;

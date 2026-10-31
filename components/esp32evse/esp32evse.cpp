@@ -33,6 +33,10 @@ constexpr uint32_t kMinUpdateIntervalMs = 10'000;
 constexpr uint32_t kMaxUpdateIntervalMs = 600'000;
 constexpr size_t kRxChunkSize = 64;
 constexpr size_t kMaxLineLength = 512;
+constexpr uint32_t kCommandTimeoutMs = 5'000;
+// A command still in flight when the EVSE announces RDY was most likely lost in
+// the reboot.  Give it just enough time for a reply the EVSE may have buffered.
+constexpr uint32_t kReadyGraceMs = 500;
 
 // Utility: return a pointer to the substring that follows ``prefix`` if the
 // incoming UART line starts with it.  Many EVSE responses follow a predictable
@@ -202,10 +206,10 @@ bool ESP32EVSEComponent::PendingCommandQueue::insert(size_t index, const Pending
   return true;
 }
 
-void ESP32EVSEComponent::PendingCommandQueue::pop_front() {
-  if (this->size_ == 0)
+void ESP32EVSEComponent::PendingCommandQueue::erase(size_t index) {
+  if (index >= this->size_)
     return;
-  for (size_t i = 1; i < this->size_; ++i) {
+  for (size_t i = index + 1; i < this->size_; ++i) {
     this->commands_[i - 1] = this->commands_[i];
   }
   --this->size_;
@@ -329,8 +333,14 @@ void ESP32EVSEComponent::loop() {
       this->process_next_command_();
       break;
     }
-    if (now - front.start_time < 5000) {
+    if (now - front.start_time < (front.sent_before_ready ? kReadyGraceMs : kCommandTimeoutMs)) {
       break;
+    }
+    if (front.sent_before_ready) {
+      // Lost in the EVSE reboot; the EVSE is alive, so this is not a timeout fault.
+      ESP_LOGD(TAG, "Dropping command '%s' sent before the EVSE restarted", front.command.c_str());
+      this->handle_ack_(false, false);
+      continue;
     }
     ESP_LOGW(TAG, "Command '%s' timed out", front.command.c_str());
     if (this->timeout_fault_binary_sensor_ != nullptr) {
@@ -686,20 +696,22 @@ void ESP32EVSEComponent::at_sub(const std::string &command, uint32_t period_ms) 
     return;
   }
   ESP_LOGD(TAG, "Sending AT+SUB for command '%s' with period %" PRIu32 " ms", command.c_str(), period_ms);
-  CommandString cmd;
-  cmd.assign("AT+SUB=");
-  cmd.append(command);
-  cmd.append_char(',');
-  cmd.append_unsigned(period_ms);
-  this->send_command_(cmd);
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::SUBSCRIPTION;
+  pending.command.assign("AT+SUB=");
+  pending.command.append(command);
+  pending.command.append_char(',');
+  pending.command.append_unsigned(period_ms);
+  this->queue_pending_command_(pending);
 }
 
 void ESP32EVSEComponent::at_unsub(const std::string &command) {
+  PendingCommand pending;
+  pending.type = PendingCommand::Type::SUBSCRIPTION;
   if (command.empty()) {
     ESP_LOGD(TAG, "Sending AT+UNSUB with empty command parameter");
-    CommandString cmd;
-    cmd.assign("AT+UNSUB=\"\"");
-    this->send_command_(cmd);
+    pending.command.assign("AT+UNSUB=\"\"");
+    this->queue_pending_command_(pending);
     return;
   }
 
@@ -711,10 +723,9 @@ void ESP32EVSEComponent::at_unsub(const std::string &command) {
   }
 
   ESP_LOGD(TAG, "Sending AT+UNSUB for command '%s'", command.c_str());
-  CommandString cmd;
-  cmd.assign("AT+UNSUB=");
-  cmd.append(command);
-  this->send_command_(cmd);
+  pending.command.assign("AT+UNSUB=");
+  pending.command.append(command);
+  this->queue_pending_command_(pending);
 }
 
 // Validate that a subscription string only contains characters supported by the
@@ -759,10 +770,36 @@ bool ESP32EVSEComponent::send_command_(const CommandString &command) {
 }
 
 void ESP32EVSEComponent::queue_pending_command_(const PendingCommand &pending) {
-  ESP_LOGV(TAG, "Queueing command: %s", pending.command.c_str());
   // Track each command so we only send one request at a time and can associate
   // the eventual OK/ERROR response with the original metadata.
   const bool prioritize_interactive = pending.type != PendingCommand::Type::GENERIC;
+
+  if (!prioritize_interactive) {
+    // Polling queries are idempotent: if the same one is still waiting to be
+    // sent, it will deliver the fresh value anyway.  This keeps repeated polls
+    // and force_update calls from piling up while the EVSE is unreachable.
+    for (size_t i = 0; i < this->pending_commands_.size(); ++i) {
+      const auto &queued = this->pending_commands_[i];
+      if (!queued.sent && queued.type == PendingCommand::Type::GENERIC &&
+          queued.command.size() == pending.command.size() &&
+          memcmp(queued.command.c_str(), pending.command.c_str(), pending.command.size()) == 0) {
+        ESP_LOGVV(TAG, "Command already queued: %s", pending.command.c_str());
+        return;
+      }
+    }
+  } else if (this->pending_commands_.full()) {
+    // Writes and subscription changes must not be lost to a backlog of polls:
+    // drop the most recently queued query instead, the next poll repeats it.
+    for (size_t i = this->pending_commands_.size(); i-- > 0;) {
+      const auto &queued = this->pending_commands_[i];
+      if (!queued.sent && queued.type == PendingCommand::Type::GENERIC) {
+        ESP_LOGD(TAG, "Pending command queue full, deferring '%s'", queued.command.c_str());
+        this->pending_commands_.erase(i);
+        break;
+      }
+    }
+  }
+  ESP_LOGV(TAG, "Queueing command: %s", pending.command.c_str());
 
   bool enqueued = false;
   if (!prioritize_interactive || this->pending_commands_.empty()) {
@@ -818,6 +855,13 @@ void ESP32EVSEComponent::process_line_(const std::string &line) {
   }
   if (line == "RDY") {
     ESP_LOGI(TAG, "ESP32-EVSE ready to accept commands");
+    // Don't let a command lost in the reboot hold the queue for the full
+    // timeout while on_ready re-establishes subscriptions.
+    if (!this->pending_commands_.empty() && this->pending_commands_.front().sent) {
+      auto &front = this->pending_commands_.front();
+      front.sent_before_ready = true;
+      front.start_time = App.get_loop_component_start_time();
+    }
     this->ready_trigger_.trigger();
     if (this->device_time_text_sensor_ != nullptr)
       this->request_timezone_rule_update();
@@ -1161,6 +1205,7 @@ void ESP32EVSEComponent::handle_ack_(bool success, bool timed_out) {
       }
       break;
     case PendingCommand::Type::GENERIC:
+    case PendingCommand::Type::SUBSCRIPTION:
       break;
   }
   this->process_next_command_();
@@ -1328,7 +1373,14 @@ void ESP32EVSEComponent::update_timezone_rule_(const std::string &timezone_rule)
   if (timezone_rule.empty() || timezone_rule == this->timezone_rule_)
     return;
   this->timezone_rule_ = timezone_rule;
-  ESP_LOGD(TAG, "ESP32-EVSE timezone rule: %s", timezone_rule.c_str());
+  // Parse once here; rendering never touches the global TZ variable.
+  this->timezone_valid_ = parse_posix_tz(timezone_rule.c_str(), this->timezone_);
+  if (this->timezone_valid_) {
+    ESP_LOGD(TAG, "ESP32-EVSE timezone rule: %s", timezone_rule.c_str());
+  } else {
+    ESP_LOGW(TAG, "Unsupported or truncated ESP32-EVSE timezone rule '%s', device_time uses this node's local time",
+             timezone_rule.c_str());
+  }
   // Re-render device_time immediately with the new rule applied.
   if (this->device_time_text_sensor_ != nullptr)
     this->request_device_time_update();
@@ -1338,31 +1390,18 @@ void ESP32EVSEComponent::update_device_time_(uint32_t timestamp) {
   this->mark_response_received_(FreshnessSlot::DEVICE_TIME);
   if (this->device_time_text_sensor_ == nullptr)
     return;
-  time_t raw_time = static_cast<time_t>(timestamp);
-  struct tm tm_info;
-  bool ok;
-  if (!this->timezone_rule_.empty()) {
-    // +TIME is a UTC epoch. Apply the EVSE's POSIX timezone rule (from
-    // AT+TZRULE) only while rendering, then restore this node's own TZ so we
-    // don't disturb its clock or other components.
-    const char *previous_tz = getenv("TZ");
-    bool had_tz = previous_tz != nullptr;
-    std::string previous_tz_copy = had_tz ? std::string(previous_tz) : std::string();
-    setenv("TZ", this->timezone_rule_.c_str(), 1);
-    tzset();
-    ok = localtime_r(&raw_time, &tm_info) != nullptr;
-    if (had_tz)
-      setenv("TZ", previous_tz_copy.c_str(), 1);
-    else
-      unsetenv("TZ");
-    tzset();
+  struct tm tm_info {};
+  if (this->timezone_valid_) {
+    // +TIME is a UTC epoch; apply the EVSE's own POSIX timezone rule.
+    posix_tz_to_local(timestamp, this->timezone_, tm_info);
   } else {
-    // No rule captured yet: fall back to this node's local time.
-    ok = localtime_r(&raw_time, &tm_info) != nullptr;
-  }
-  if (!ok) {
-    this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
-    return;
+    // No usable rule: fall back to this node's local time (the `time:`
+    // component's timezone when one is configured, UTC otherwise).
+    time_t raw_time = static_cast<time_t>(timestamp);
+    if (localtime_r(&raw_time, &tm_info) == nullptr) {
+      this->publish_text_sensor_state_(this->device_time_text_sensor_, "invalid");
+      return;
+    }
   }
   char buffer[32];
   if (strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M", &tm_info) == 0) {

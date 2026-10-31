@@ -20,8 +20,10 @@ from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 from esphome.core import CORE
 
 # Make sure UART gets compiled alongside our component because we depend on it
-# both at configuration time and at runtime on the microcontroller.
-AUTO_LOAD = ["uart"]
+# both at configuration time and at runtime on the microcontroller.  The entity
+# domains are loaded too because esp32evse.h uses all of their types, so a
+# configuration that omits a whole platform (e.g. no buttons) still compiles.
+AUTO_LOAD = ["uart", "binary_sensor", "button", "number", "sensor", "switch", "text_sensor"]
 DEPENDENCIES = ["uart"]
 # Document the maintainer so users know who to reach out to for reviews.
 CODEOWNERS = ["@nagyrobi"]
