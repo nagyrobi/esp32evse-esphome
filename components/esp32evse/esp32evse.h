@@ -15,6 +15,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include "posix_tz.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -513,10 +515,13 @@ class ESP32EVSEComponent : public uart::UARTDevice, public PollingComponent {
   ESP32EVSETemperatureFaultBinarySensor *temperature_fault_binary_sensor_{nullptr};
   ESP32EVSETimeoutFaultBinarySensor *timeout_fault_binary_sensor_{nullptr};
 
-  // POSIX timezone rule captured once from AT+TZRULE (e.g.
-  // "CET-1CEST,M3.5.0,M10.5.0/3"), applied when rendering device_time so it
-  // shows the EVSE's local time. Empty until the first +TZRULE response.
+  // POSIX timezone rule captured from AT+TZRULE (e.g.
+  // "CET-1CEST,M3.5.0,M10.5.0/3"), parsed once and applied when rendering
+  // device_time so it shows the EVSE's local time. Empty until the first
+  // +TZRULE response; timezone_valid_ stays false if the rule can't be parsed.
   std::string timezone_rule_;
+  PosixTz timezone_{};
+  bool timezone_valid_{false};
 
   // UART receive buffer and queue of in-flight commands awaiting responses.
   std::string read_buffer_;
